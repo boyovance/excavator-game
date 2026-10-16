@@ -20,7 +20,7 @@ test('start stores independent equipment, id and fixed dice', () => {
 const done = claim(start);
 test('claim ignores client dice and itemizes exactly the paid total', () => {
   assert.equal(done.report.jackpot, false);
-  assert.equal(done.report.breakdown.base, 20);
+  assert.equal(done.report.breakdown.base, 22);
   assert.equal(done.report.drops[0].dup, true);
   assert.equal(done.report.breakdown.duplicates, done.report.drops[0].coins);
   const b = done.report.breakdown;

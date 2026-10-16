@@ -1,5 +1,6 @@
 import { api } from '../api';
-import { SITES, MACHINE_SLOTS, fitsMachine, partById, siteById, siteOpenTo } from '../shared/parts.mjs';
+import { MACHINE_SLOTS, fitsMachine, partById, siteOpenTo } from '../shared/parts.mjs';
+import { economySites, economySite, departureDurability } from '../shared/economy.mjs';
 import { jobMultiplier } from '../shared/jobs.mjs';
 import { canVisitSite, siteLevel, siteUnlocked } from '../shared/growth.mjs';
 import { partName, siteName, type ClientAction } from '../shared/reducer.mjs';
@@ -40,6 +41,7 @@ export function renderJobs() {
     jobsEl.innerHTML = `<article class="mission-card ${ready ? 'mission-ready' : ''}">
       <div class="mission-heading"><span class="mission-tag">${ready ? '工作完成 · 待領取' : '派遣進行中'}</span><span class="hint">單一工作槽</span></div>
       <h3>${esc(siteName(job.site))}</h3><p class="mission-machine">${esc(partName(job.machineId))}</p>
+      ${job.rulesVersion === 1 ? '<p class="hint">升級前派遣：保留原版收益與耐久規則結算。</p>' : ''}
       <div class="bar mission-bar"><i id="job-bar"></i></div>
       <div class="mission-timing"><strong id="job-left"></strong><span>預計 ${timeText(job.end)} 完成</span></div>
       <details class="loadout"><summary>查看出發配置 · 收益 ×${jobMultiplier(job.equippedSnapshot).toFixed(2)}</summary><p>${equipmentList(job.equippedSnapshot)}</p><p class="hint">車庫換裝不影響這次派遣；所有機型共用耐久。</p></details>
@@ -50,11 +52,12 @@ export function renderJobs() {
     return;
   }
   const machineId = state.equipped.machine;
-  const ordered = [...SITES].sort((a, b) => Number(canVisitSite(state, b)) - Number(canVisitSite(state, a)));
+  const ordered = [...economySites()].sort((a, b) => Number(canVisitSite(state, b)) - Number(canVisitSite(state, a)));
   jobsEl.innerHTML = `<div class="dispatch-intro"><span>準備出發</span><b>${esc(partName(machineId))}</b></div>${status}<div class="site-grid">` + ordered.map((s) => {
     const fits = siteOpenTo(s, machineId);
     const unlocked = siteUnlocked(state, s.id);
     const open = fits && unlocked;
+    const required = departureDurability(s);
     const usable = s.loot.filter(([id]) => fitsMachine(partById(id), machineId));
     const loot = (usable.length ? usable : s.loot).map(([id]) => partName(id)).join('、');
     return `<article class="site-card ${open ? '' : 'site-locked'}"><div class="site-heading"><h3>${esc(s.name)}</h3><span class="duration-chip">${fmtMinutes(s.minutes)}</span></div>
@@ -62,7 +65,8 @@ export function renderJobs() {
       <p class="site-stats">經驗 +${s.xp}　·　磨損 ${s.wear}　·　大豐收 ${Math.round(s.jackpot * 100)}%</p>
       <p class="hint">${unlocked ? state.legacySites.includes(s.id) ? '已開放 · 舊存檔保留權限' : `已開放 · Lv.${siteLevel(s.id)}` : `Lv.${siteLevel(s.id)} 解鎖 · 前往成長面板查看目標`}</p>
       ${fits ? `<details class="site-loot"><summary>可能掉落 · 最多 ${s.drops.length} 件零件</summary><p>${esc(loot)}</p></details>` : `<p class="fits">適用機型：${s.machines!.map((id) => esc(partName(id))).join('、')}</p>`}
-      <button class="${open ? 'primary' : ''}" data-job="start" data-site="${s.id}" ${busy || state.durability <= 0 || !open ? 'disabled' : ''}>${!unlocked ? `Lv.${siteLevel(s.id)} 解鎖` : !fits ? '機型不符' : state.durability <= 0 ? '需要恢復耐久' : '查看並派遣'}</button></article>`;
+      <p class="hint">出發至少 ${required} 耐久；維修不自動扣款。${open && state.durability < required ? '耐久不足，請到上方維修或免費休息後先跑短工地。' : ''}</p>
+      <button class="${open ? 'primary' : ''}" data-job="start" data-site="${s.id}" ${busy || state.durability < required || !open ? 'disabled' : ''}>${!unlocked ? `Lv.${siteLevel(s.id)} 解鎖` : !fits ? '機型不符' : state.durability < required ? `需要 ${required} 耐久` : '查看並派遣'}</button></article>`;
   }).join('') + '</div>';
 }
 
@@ -84,8 +88,8 @@ export function tickJob() {
 }
 
 function showConfirmation(siteId: string) {
-  const site = siteById(siteId);
-  if (!site || ui.state.job || !canVisitSite(ui.state, site)) return;
+  const site = economySite(siteId);
+  if (!site || ui.state.job || !canVisitSite(ui.state, site) || ui.state.durability < departureDurability(site)) return;
   selected = siteId;
   dialog().dataset.loadout = JSON.stringify(ui.state.equipped);
   const multiplier = jobMultiplier(ui.state.equipped);
@@ -94,6 +98,7 @@ function showConfirmation(siteId: string) {
     <dl class="confirm-grid"><div><dt>工作時間</dt><dd>${fmtMinutes(site.minutes)}</dd></div><div><dt>預計完成</dt><dd>${timeText(Date.now() + site.minutes * 60_000)}</dd></div>
     <div><dt>裝備收益倍率</dt><dd>×${multiplier.toFixed(2)}</dd></div><div><dt>預計磨損</dt><dd>${site.wear} 耐久</dd></div></dl>
     <p>一般收益約 <b>${Math.round(site.coins[0] * multiplier)}–${Math.round(site.coins[1] * multiplier)}</b> 金幣，另有大豐收與掉落機會。</p>
+    <p class="hint">出發至少 ${departureDurability(site)} 耐久；重複零件按標價 25% 折現（5～25 金幣），維修由你自行決定。</p>
     <details class="loadout"><summary>本次帶上的配件</summary><p>${equipmentList(ui.state.equipped)}</p></details>
     <p class="hint">出發後固定此配置。期間可繼續換裝，所有機型共用耐久；完成後需手動領取。</p>`;
   document.getElementById('job-confirm-error')!.textContent = '';
@@ -141,6 +146,11 @@ export function bindJobs(render: () => void) {
   dialog().addEventListener('cancel', (e) => { if (busy) e.preventDefault(); });
   document.getElementById('job-depart')!.addEventListener('click', () => {
     if (!selected || busy) return;
+    const site = economySite(selected);
+    if (!site || ui.state.durability < departureDurability(site)) {
+      document.getElementById('job-confirm-error')!.textContent = '耐久已不足，請返回維修或免費休息後再派遣。';
+      return;
+    }
     if (dialog().dataset.loadout !== JSON.stringify(ui.state.equipped)) { showConfirmation(selected); return; }
     void run({ type: 'startJob', site: selected });
   });

@@ -7,7 +7,7 @@ import { claimJob, digCoins } from './rewards.mjs';
 import { HEX_COLOR, MOOD_FLOOR, NAME_MAX, clamp, num, withMood } from './util.mjs';
 import { normalizeJob } from './jobs.mjs';
 import { canVisitSite, claimGrowth } from './growth.mjs';
-import { economySite, economyVersion, departureDurability } from './economy.mjs';
+import { economySite, economyVersion, departureDurability, CURRENT_ECONOMY_VERSION } from './economy.mjs';
 
 export { MILESTONES, companionDays } from './milestones.mjs';
 export { DEFAULT_STATE, normalize } from './normalize.mjs';
@@ -19,7 +19,7 @@ const MOOD_STEP_MS = 90_000;
 const MOOD_DECAY_CAP_STEPS = 20;
 const MOOD_BASELINE = 55;
 
-export function reduce(state, action, previewVersion = 1) {
+export function reduce(state, action, previewVersion = CURRENT_ECONOMY_VERSION) {
   switch (action.type) {
     case 'claimGrowth':
       return claimGrowth(state, action.id);

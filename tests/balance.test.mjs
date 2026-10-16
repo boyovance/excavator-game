@@ -12,17 +12,17 @@ const base = normalize(null);
 const begin = (s = base, version = 1) => reduce(s, { type: 'startJob', site: 'yard', id: 'balance-test', now: 1000, rolls: Array(11).fill(0.5) }, version);
 const finish = (s, version = 1) => reduce(s, { type: 'claim', jobId: s.job.id, now: s.job.end }, version);
 test('original tables, ordinary departure and refund defaults remain unchanged', () => {
-  assert.equal(economySites(), SITES);
-  assert.deepEqual(economySite('yard').coins, [10, 30]);
+  assert.equal(economySites(1), SITES);
+  assert.deepEqual(economySite('yard', 1).coins, [10, 30]);
   assert.deepEqual(economySite('yard', 2).coins, [12, 32]);
   assert.equal(begin().job.rulesVersion, 1);
   assert.equal(finish(begin()).report.breakdown.base, 20);
-  assert.equal(duplicateRefund('acc_beacon'), 25);
+  assert.equal(duplicateRefund('acc_beacon', 1), 25);
   assert.equal(duplicateRefund('acc_beacon', 2), 12);
 });
-test('candidate is opt-in trusted context, not a client action property', () => {
+test('accepted rules are the production default, never selected by a client property', () => {
   const a = reduce(base, { type: 'startJob', site: 'yard', now: 1000, rulesVersion: 2, previewVersion: 2 });
-  assert.equal(a.job.rulesVersion, 1);
+  assert.equal(a.job.rulesVersion, 2);
   assert.equal(begin(base, 99).job.rulesVersion, 1);
   assert.equal(begin(base, 2).job.rulesVersion, 2);
 });
@@ -108,7 +108,7 @@ let server;
 try {
   server = await startServer({ dataDir: dir, token: 'balance-test' });
   const request = (action) => fetch(`http://127.0.0.1:${server.port}/dispatch`, { method: 'POST', headers: { Authorization: 'Bearer balance-test', 'Content-Type': 'application/json' }, body: JSON.stringify(action) });
-  assert.equal((await request({ type: 'startJob', site: 'yard', rulesVersion: 2, previewVersion: 2 })).status, 200);
-  assert.equal(server.getState().job.rulesVersion, 1);
-  console.log('PASS ordinary server ignores forged preview version and retains production rules');
+  assert.equal((await request({ type: 'startJob', site: 'yard', rulesVersion: 1, previewVersion: 1 })).status, 200);
+  assert.equal(server.getState().job.rulesVersion, 2);
+  console.log('PASS ordinary server ignores forged legacy version and uses accepted production rules');
 } finally { await server?.close(); fs.rmSync(dir, { recursive: true, force: true }); }

@@ -100,7 +100,7 @@ async function until(check) {
   await js('document.querySelector("[data-job=claim]").click(); document.querySelector("[data-job=claim]")?.click()');
   await until(() => !ctx.gameState.job && js('!!document.querySelector(".reward-grid")'));
   const paid = ctx.gameState.coins;
-  assert.equal(ctx.gameState.report.breakdown.duplicates, 25);
+  assert.equal(ctx.gameState.report.breakdown.duplicates, 12);
   assert.equal(paid - before, ctx.gameState.report.coins);
   assert.equal((await js('window.api.requestAction({type:"claim",jobId:' + JSON.stringify(original.id) + '})')).ok, true);
   assert.equal(ctx.gameState.coins, paid);

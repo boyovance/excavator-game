@@ -29,4 +29,8 @@ jobs:
       - if: runner.os == 'Windows'
         run: npm run test:balance
       - if: runner.os == 'Windows'
+        run: npm run test:release
+      - if: runner.os == 'Windows'
         run: npm run pack
+      - if: runner.os == 'Windows'
+        run: npm run test:packaged

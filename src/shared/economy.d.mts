@@ -1,4 +1,5 @@
 import type { Site } from './parts.mjs';
+export const CURRENT_ECONOMY_VERSION: number;
 export const ECONOMY_VERSIONS: number[];
 export function economyVersion(version: unknown): number;
 export function economySites(version?: number): Site[];

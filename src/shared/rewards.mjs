@@ -2,7 +2,7 @@ import { grantsOf } from './machine.mjs';
 import { fitsMachine, partById } from './parts.mjs';
 import { num, withMood } from './util.mjs';
 import { ROLLS_NEEDED, jobMultiplier } from './jobs.mjs';
-import { economySite, duplicateRefund } from './economy.mjs';
+import { economySite, duplicateRefund, economyVersion } from './economy.mjs';
 
 const BASE_COINS = 4;
 // coin spread (2) + jackpot (1) + a chance/item pair for each of up to 3 drops (6) + a machine drop chance and pick (2)
@@ -46,7 +46,8 @@ function rollDrop(site, roll, machineId) {
 export function claimJob(state, action) {
   const job = state.job;
   if (!job || num(action.now) < job.end || (action.jobId && action.jobId !== job.id)) return state;
-  const site = economySite(job.site, job.rulesVersion);
+  const version = economyVersion(job.rulesVersion);
+  const site = economySite(job.site, version);
   // Dice, all supplied by the server: 0-1 coin spread, 2 jackpot, then a (chance, item) pair per possible drop.
   const rolls = job.rolls;
   const [lo, hi] = site.coins;
@@ -67,7 +68,7 @@ export function claimJob(state, action) {
     if (rolls[3 + 2 * i] >= chance) return;
     const id = rollDrop(site, rolls[4 + 2 * i], job.machineId);
     const dup = owned.includes(id);
-    const refund = dup ? duplicateRefund(id, job.rulesVersion) : 0;
+    const refund = dup ? duplicateRefund(id, version) : 0;
     if (dup) { coins += refund; duplicates += refund; }
     else owned = [...owned, id];
     drops.push({ id, dup, coins: refund });
@@ -84,7 +85,7 @@ export function claimJob(state, action) {
       drops.push({ id, dup: false });
     }
   }
-  const remaining = Math.max(job.rulesVersion === 2 ? 0 : 1, state.durability - site.wear);
+  const remaining = Math.max(version === 2 ? 0 : 1, state.durability - site.wear);
   return withMood(
     {
       ...state,

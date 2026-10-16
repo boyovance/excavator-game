@@ -1,8 +1,8 @@
 import { DEFAULT_EQUIPPED, partById, siteById } from './parts.mjs';
 import { loadoutFor } from './machine.mjs';
-import { economyVersion } from './economy.mjs';
+import { economyVersion, CURRENT_ECONOMY_VERSION } from './economy.mjs';
 
-export const RULES_VERSION = 1;
+export const RULES_VERSION = CURRENT_ECONOMY_VERSION;
 export const ROLLS_NEEDED = 11;
 export const jobMultiplier = (equipped) => Object.values(equipped).reduce((n, id) => n * (partById(id)?.stats?.jobCoin ?? 1), 1);
 

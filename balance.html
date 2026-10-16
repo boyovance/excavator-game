@@ -7,7 +7,7 @@
 label{grid-template-columns:minmax(0,1fr)}select{min-width:0;width:100%}@media(max-width:550px){.controls label{flex-basis:100%;min-width:0}}
 </style></head><body><main>
 <header><span class="eyebrow">M4 · 經濟平衡驗收</span><h1>同一趟工作，兩種養成節奏</h1><p class="hint">比較現況與候選 A，再用下方沙盒體驗收入、維修與購買。</p></header>
-<div class="notice">候選尚未套用正式遊戲。此頁完全獨立、不讀寫正式存檔；關閉後試玩進度不保留。模擬一趟會快轉工時，正式派遣仍需原本時間。</div>
+<div class="notice">方案 A 已於 0.8.0 套用新派遣；舊派遣保留原版結算。此頁仍是獨立比較工具，不讀寫正式存檔，關閉後不保留；快轉只用於模擬。</div>
 <section aria-labelledby="compare-title"><h2 id="compare-title">01 · 收益比較</h2><p class="hint">相同配置、相同種子，每工地各 3000 趟；每趟維修至滿，立即領取並續派。</p>
 <div class="controls"><label>比較機型<select id="balance-machine"></select></label><label>配置<select id="balance-loadout"><option value="stock">標配</option><option value="shop">商店最高派遣倍率</option><option value="all">全收藏最高派遣倍率</option></select></label><label>收藏快照<select id="balance-collection"><option value="starter">起始收藏（含配置）</option><option value="half">半數收藏</option><option value="full">全收藏</option></select></label><button id="balance-run">重新計算</button></div>
 <p id="comparison-status" class="status" role="status">準備比較…</p><div class="table-wrap"><table><thead><tr><th>工地／時間</th><th>原版淨幣/h</th><th>候選淨幣/h</th><th>原版→候選 XP/h</th><th>零件/h</th><th>新零件/h</th></tr></thead><tbody id="balance-rows"></tbody></table></div>
@@ -15,12 +15,12 @@ label{grid-template-columns:minmax(0,1fr)}select{min-width:0;width:100%}@media(m
 <details><summary>候選 A 改了什麼？</summary><ul><li>提高廢料場基礎收入、收窄長工地金幣優勢；時間與機型掉落概率不變。</li><li>重複零件折現：標價 25%，最低 5、最高 25 金幣（無標價按 60）。</li><li>出發耐久需足夠支付工地磨損，結算可到 0；不自動扣維修費，保留免費休息退路。</li><li>採石經驗由 70 → 75；商店價格、等級門檻、成長獎勵及其他經驗不變。</li></ul></details>
 </section>
 <section aria-labelledby="trial-title"><h2 id="trial-title">02 · 獨立試玩沙盒</h2><p class="hint">每次切換方案或重設，使用相同種子重新開始；不會把兩方案收入混在一起。</p>
-<div class="controls"><label>試玩方案<select id="trial-version"><option value="2">候選 A · 待確認</option><option value="1">原版 · 目前正式規則</option></select></label><label>試玩起點<select id="trial-preset"><option value="compare">比較配置 · Lv.6／150 金幣</option><option value="new">新玩家 · Lv.1／20 金幣</option><option value="repair">維修壓力 · 1 耐久／0 金幣</option></select></label><button id="trial-reset">套用比較配置並重設</button></div>
+<div class="controls"><label>試玩方案<select id="trial-version"><option value="2">方案 A · 0.8.0 正式規則</option><option value="1">原版 · 0.7.3 規則</option></select></label><label>試玩起點<select id="trial-preset"><option value="compare">比較配置 · Lv.6／150 金幣</option><option value="new">新玩家 · Lv.1／20 金幣</option><option value="repair">維修壓力 · 1 耐久／0 金幣</option></select></label><button id="trial-reset">套用比較配置並重設</button></div>
 <p id="trial-description" class="hint"></p><div class="metrics"><div class="metric"><strong id="trial-coins">0</strong><span>目前金幣</span></div><div class="metric"><strong id="trial-durability">100</strong><span>耐久／100</span></div><div class="metric"><strong id="trial-level">1</strong><span>等級</span></div><div class="metric"><strong id="trial-time">0</strong><span>累計模擬分鐘</span></div></div>
 <div class="controls"><label>下一趟工地<select id="trial-site"></select></label><button class="primary" id="trial-trip">模擬完成一趟</button></div>
 <p id="trial-condition" class="hint"></p><div class="actions"><button id="trial-repair">維修</button><button id="trial-rest">免費休息</button><button id="trial-buy">購買微型機 · 150 金幣</button></div>
 <div id="trial-growth"></div><p id="trial-message" class="status" role="status"></p><div id="trial-report">完成一趟後，這裡會顯示真實規則計算的拆帳。</div>
 <details><summary>查看最近操作紀錄</summary><ol id="trial-history"></ol></details>
 </section>
-<section><h2>03 · 本輪想請你確認</h2><p>短工地的回報是否足夠？維修介入的頻率是否打擾？重複零件折現降低後，收集是否仍有回報感？</p><p class="hint">原版／候選首台微型機的純派遣模擬中位數約 30 分鐘；掉落限定機型仍可能等很久。本輪不新增保底。完整報告另列所有機型配置、P50／P90、仍被壓過的工地及模型限制，等待你確認再決定正式調整。</p></section>
+<section><h2>03 · 後續持續觀察</h2><p>短工地的回報是否足夠？維修介入的頻率是否打擾？重複零件折現降低後，收集是否仍有回報感？</p><p class="hint">原版／方案 A 首台微型機的純派遣模擬中位數約 30 分鐘；掉落限定機型仍可能等很久，尚無保底。完整報告保留所有機型配置、P50／P90、仍被壓過的工地及模型限制，接入正式版不代表所有工地已完全等價。</p></section>
 </main><script type="module" src="/src/balance.ts"></script></body></html>

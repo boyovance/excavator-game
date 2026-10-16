@@ -12,19 +12,19 @@ ok(reduce(s, { type: 'claim', now: 2000, rolls: [0.5, 0, 0] }) === s, 'claim bef
 const R = (c1, c2, jp, d1, p1, d2 = 1, p2 = 0, d3 = 1, p3 = 0) => [c1, c2, jp, d1, p1, d2, p2, d3, p3, 0.99, 0];
 const done = claimWithRolls(s, { type: 'claim', now: 1000 + 5 * 60000, rolls: R(0.5, 0.5, 0.9, 0.1, 0) });
 ok(done.job === null && done.report && !done.report.seen, 'claim clears job and writes report');
-ok(done.coins === 20 + done.report.coins && done.report.coins >= 10 && done.report.coins <= 30, 'coins in range: ' + done.report.coins);
+ok(done.coins === 20 + done.report.coins && done.report.coins >= 12 && done.report.coins <= 32, 'coins in range: ' + done.report.coins);
 ok(done.report.drops.length === 1 && done.report.drops[0].id === 'acc_beacon' && done.owned.includes('acc_beacon'), 'first loot entry dropped and owned');
 ok(done.durability === 92, 'wear applied: ' + done.durability);
 
 const low = claimWithRolls(s, { type: 'claim', now: 999999999, rolls: R(0, 0, 0.9, 1, 0) });
 const high = claimWithRolls(s, { type: 'claim', now: 999999999, rolls: R(0.999, 0.999, 0.9, 1, 0) });
-ok(low.report.coins === 10 && high.report.coins === 30, 'coin extremes hit the range ends: ' + low.report.coins + '/' + high.report.coins);
+ok(low.report.coins === 12 && high.report.coins === 32, 'coin extremes hit the range ends: ' + low.report.coins + '/' + high.report.coins);
 const jp = claimWithRolls(s, { type: 'claim', now: 999999999, rolls: R(0, 0, 0.0, 1, 0) });
-ok(jp.report.jackpot && jp.report.coins === 20, 'jackpot doubles coins');
+ok(jp.report.jackpot && jp.report.coins === 24, 'jackpot doubles coins');
 
 s = reduce(done, { type: 'startJob', site: 'yard', now: 0 });
 const dup = claimWithRolls(s, { type: 'claim', now: 999999999, rolls: R(0, 0, 0.9, 0.1, 0) });
-ok(dup.report.drops[0].dup && dup.report.coins >= 10 + 15, 'duplicate converts to coins: ' + dup.report.coins);
+ok(dup.report.drops[0].dup && dup.report.coins === 12 + 12, 'duplicate converts to coins: ' + dup.report.coins);
 
 const noDrop = claimWithRolls(s, { type: 'claim', now: 999999999, rolls: R(0, 0.5, 0.9, 0.99, 0.5) });
 ok(noDrop.report.drops.length === 0, 'no drop when roll >= chance');
