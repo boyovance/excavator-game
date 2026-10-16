@@ -6,6 +6,7 @@ const { bannerScript } = require('./demo-banner.cjs');
 const dir = process.env.EXCAVATOR_USER_DATA;
 assert(path.basename(dir ?? '').startsWith('exc-release-'), 'Isolated test profile required');
 const root = process.env.EXCAVATOR_TEST_ROOT;
+const version = require(path.join(root, 'package.json')).version;
 const output = process.env.EXCAVATOR_RELEASE_OUTPUT;
 const phase = process.env.EXCAVATOR_RELEASE_PHASE;
 const demo = phase === 'demo';
@@ -18,8 +19,8 @@ app.on('browser-window-created', (_e, win) => {
   win.webContents.on('render-process-gone', (_event, details) => errors.push(JSON.stringify(details)));
   if (demo) win.webContents.on('did-finish-load', () => {
     if (!win.webContents.getURL().includes('/garage.html')) return;
-    win.setTitle('0.8.0 發佈驗收 — 獨立新存檔');
-    win.webContents.executeJavaScript(bannerScript('0.8.0 發佈驗收 · 獨立新存檔 · 新經濟規則，派遣使用正式時間')).catch(console.error);
+    win.setTitle(`${version} 發佈驗收 — 獨立新存檔`);
+    win.webContents.executeJavaScript(bannerScript(`${version} 發佈驗收 · 獨立新存檔 · 新經濟規則，派遣使用正式時間`)).catch(console.error);
   });
 });
 require(path.join(root, 'electron/main.cjs'));
@@ -61,8 +62,8 @@ let g;
   const request = (action) => js(`window.api.requestAction(${JSON.stringify(action)})`);
   const closeResult = async () => js('document.querySelector("#dispatch-result").close()');
   if (demo) {
-    await js(bannerScript('0.8.0 發佈驗收 · 獨立新存檔 · 已接入新經濟規則，派遣使用正式時間'));
-    ctx.garageWin.setTitle('0.8.0 發佈驗收 — 新玩家完整流程');
+    await js(bannerScript(`${version} 發佈驗收 · 獨立新存檔 · 已接入新經濟規則，派遣使用正式時間`));
+    ctx.garageWin.setTitle(`${version} 發佈驗收 — 新玩家完整流程`);
     ctx.garageWin.show(); ctx.garageWin.focus();
     console.log('Demo ready: isolated fresh onboarding, production economy v2, normal dispatch time. Close via tray to exit.');
     return;

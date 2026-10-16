@@ -20,6 +20,8 @@ Windows 桌面挖掘機養成遊戲。以派遣、零件收集、機型搭配及
 
 每個功能區完成後提供效果、驗證結果與待確認事項；經使用者確認後再進入下一功能區。
 
+目前本機候選版為 0.8.1：修正獨立測試存檔的 EXE 仍可能修改系統開機啟動項的問題。新手流程及維修提示已獲確認；M5 真實 EXE 短測已補上，乾淨系統安裝驗收仍缺測試機，兩小時長測依使用者要求暫不啟動。
+
 ## 開發環境與操作
 
 使用 Node.js 24.x、npm 及 Git；Windows 為桌面應用主要驗證平台，CI 同時在 Windows 與 Linux 執行邏輯測試與網頁建置。
@@ -47,6 +49,8 @@ npm run dev
 | `npm run demo:balance` | 建置後開啟獨立經濟沙盒，快轉只作用於模擬，不改正式派遣時間 |
 | `npm run test:release` | 建置後分三個 Electron 進程驗證新玩家流程、舊／新派遣重啟與匯出還原 |
 | `npm run test:packaged` | pack／dist 後以同版本 Electron 載入 app.asar 跑發佈流程；不代表已安裝 EXE 驗收 |
+| `npm run test:exe` | 啟動真正 win-unpacked EXE，隔離存檔、失敗重試、重啟及損壞檔備份恢復；測試後關閉本機偵錯埠 |
+| `npm run demo:manual` | 啟動已通過 EXE 驗證的打包程式，用固定獨立存檔做睡眠／通知等人工驗收；重跑保留進度、不開偵錯埠 |
 | `npm run demo:release` | 打開 0.8.0 正式 UI 的隔離新玩家演示，使用正常工時，不碰正式進度 |
 | `npm start` | 建置並啟動本地桌面應用 |
 | `npm run pack` | Windows 可執行目錄輸出至 `release/` |

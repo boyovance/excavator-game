@@ -34,3 +34,5 @@ jobs:
         run: npm run pack
       - if: runner.os == 'Windows'
         run: npm run test:packaged
+      - if: runner.os == 'Windows'
+        run: npm run test:exe
