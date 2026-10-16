@@ -1,6 +1,7 @@
 import { api } from '../api';
 import { SITES, MACHINE_SLOTS, fitsMachine, partById, siteById, siteOpenTo } from '../shared/parts.mjs';
 import { jobMultiplier } from '../shared/jobs.mjs';
+import { canVisitSite, siteLevel, siteUnlocked } from '../shared/growth.mjs';
 import { partName, siteName, type ClientAction } from '../shared/reducer.mjs';
 import { jobsEl, reportEl } from './dom';
 import { ui } from './store';
@@ -48,16 +49,19 @@ export function renderJobs() {
     return;
   }
   const machineId = state.equipped.machine;
-  const ordered = [...SITES].sort((a, b) => Number(siteOpenTo(b, machineId)) - Number(siteOpenTo(a, machineId)));
+  const ordered = [...SITES].sort((a, b) => Number(canVisitSite(state, b)) - Number(canVisitSite(state, a)));
   jobsEl.innerHTML = `<div class="dispatch-intro"><span>準備出發</span><b>${esc(partName(machineId))}</b></div>${status}<div class="site-grid">` + ordered.map((s) => {
-    const open = siteOpenTo(s, machineId);
+    const fits = siteOpenTo(s, machineId);
+    const unlocked = siteUnlocked(state, s.id);
+    const open = fits && unlocked;
     const usable = s.loot.filter(([id]) => fitsMachine(partById(id), machineId));
     const loot = (usable.length ? usable : s.loot).map(([id]) => partName(id)).join('、');
     return `<article class="site-card ${open ? '' : 'site-locked'}"><div class="site-heading"><h3>${esc(s.name)}</h3><span class="duration-chip">${fmtMinutes(s.minutes)}</span></div>
       <p class="site-reward">${s.coins[0]}–${s.coins[1]} <small>基礎金幣</small></p>
       <p class="site-stats">經驗 +${s.xp}　·　磨損 ${s.wear}　·　大豐收 ${Math.round(s.jackpot * 100)}%</p>
-      ${open ? `<details class="site-loot"><summary>可能掉落 · 最多 ${s.drops.length} 件零件</summary><p>${esc(loot)}</p></details>` : `<p class="fits">適用機型：${s.machines!.map((id) => esc(partName(id))).join('、')}</p>`}
-      <button class="${open ? 'primary' : ''}" data-job="start" data-site="${s.id}" ${busy || state.durability <= 0 || !open ? 'disabled' : ''}>${!open ? '機型不符' : state.durability <= 0 ? '需要恢復耐久' : '查看並派遣'}</button></article>`;
+      <p class="hint">${unlocked ? state.legacySites.includes(s.id) ? '已開放 · 舊存檔保留權限' : `已開放 · Lv.${siteLevel(s.id)}` : `Lv.${siteLevel(s.id)} 解鎖 · 前往成長面板查看目標`}</p>
+      ${fits ? `<details class="site-loot"><summary>可能掉落 · 最多 ${s.drops.length} 件零件</summary><p>${esc(loot)}</p></details>` : `<p class="fits">適用機型：${s.machines!.map((id) => esc(partName(id))).join('、')}</p>`}
+      <button class="${open ? 'primary' : ''}" data-job="start" data-site="${s.id}" ${busy || state.durability <= 0 || !open ? 'disabled' : ''}>${!unlocked ? `Lv.${siteLevel(s.id)} 解鎖` : !fits ? '機型不符' : state.durability <= 0 ? '需要恢復耐久' : '查看並派遣'}</button></article>`;
   }).join('') + '</div>';
 }
 
@@ -80,7 +84,7 @@ export function tickJob() {
 
 function showConfirmation(siteId: string) {
   const site = siteById(siteId);
-  if (!site || ui.state.job || !siteOpenTo(site, ui.state.equipped.machine)) return;
+  if (!site || ui.state.job || !canVisitSite(ui.state, site)) return;
   selected = siteId;
   dialog().dataset.loadout = JSON.stringify(ui.state.equipped);
   const multiplier = jobMultiplier(ui.state.equipped);

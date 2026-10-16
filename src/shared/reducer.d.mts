@@ -32,6 +32,8 @@ export interface Report {
 
 export interface GameState {
   schemaVersion: number;
+  growthClaimed: string[];
+  legacySites: string[];
   name: string;
   /** 0..100 */
   mood: number;
@@ -59,6 +61,7 @@ export interface GameState {
 
 /** Everything a client may ask for. The server decides amounts, time and dice. */
 export type ClientAction =
+  | { type: 'claimGrowth'; id: string }
   | { type: 'tint'; slot: string; color: string | null }
   | { type: 'dig' }
   | { type: 'wear' }
@@ -76,6 +79,7 @@ export type ClientAction =
 
 /** Internal actions the reducer understands (a superset of what clients can send). */
 export type Action =
+  | { type: 'claimGrowth'; id: string }
   | { type: 'tint'; slot: string; color: string | null }
   | { type: 'dig' }
   | { type: 'tick'; now: number }

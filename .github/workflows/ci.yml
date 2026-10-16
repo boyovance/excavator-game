@@ -25,4 +25,6 @@ jobs:
       - if: runner.os == 'Windows'
         run: npm run test:catalog
       - if: runner.os == 'Windows'
+        run: npm run test:growth
+      - if: runner.os == 'Windows'
         run: npm run pack

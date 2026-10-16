@@ -34,7 +34,7 @@ const avg = (id) => {
   let sum = 0, parts = 0;
   const N = 4000;
   for (let i = 0; i < N; i++) {
-    const st = reduce(normalize(null), stamp({ type: 'startJob', site: id }, 0));
+    const st = reduce({ ...normalize(null), xp: 500 }, stamp({ type: 'startJob', site: id }, 0));
     const r = reduce(st, stamp({ type: 'claim' }, 1e12)).report;
     sum += r.coins;
     parts += r.drops.length;

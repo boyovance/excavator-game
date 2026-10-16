@@ -13,7 +13,7 @@ const HEARTBEAT_MS = 25_000;
 // Only these may come from a client. Amounts, time and dice are decided here, never by the client.
 const CLIENT_ACTIONS = new Set([
   'dig', 'wear', 'rest', 'poke', 'rename', 'buy', 'equip', 'repair',
-  'startJob', 'cancelJob', 'claim', 'ackReport', 'ackMilestone', 'tint',
+  'startJob', 'cancelJob', 'claim', 'claimGrowth', 'ackReport', 'ackMilestone', 'tint',
 ]);
 
 // Minimum gap between accepted actions of the same kind.
@@ -30,6 +30,7 @@ function sanitize(action) {
       return { type: 'rename', name: str(action.name, 40) };
     case 'buy':
     case 'equip':
+    case 'claimGrowth':
       return { type: action.type, id: str(action.id, 64) };
     case 'startJob':
       return { type: 'startJob', site: str(action.site, 64) };
@@ -134,6 +135,7 @@ export async function startServer({ dataDir, token, port = 0, host = '127.0.0.1'
   const handleAction = (raw) => {
     if (!raw || typeof raw !== 'object' || !CLIENT_ACTIONS.has(raw.type)) return 400;
     if (['claim', 'cancelJob'].includes(raw.type) && (typeof raw.jobId !== 'string' || !raw.jobId || raw.jobId.length > 128)) return 400;
+    if (raw.type === 'claimGrowth' && (typeof raw.id !== 'string' || !raw.id || raw.id.length > 64)) return 400;
     const t = now();
     const cooldown = COOLDOWN_MS[raw.type];
     if (cooldown) {
@@ -144,10 +146,11 @@ export async function startServer({ dataDir, token, port = 0, host = '127.0.0.1'
     // Resting only makes sense while the machine is broken down.
     if (raw.type === 'rest' && state.durability >= 15) return 200;
     const action = stamp(sanitize(raw), t);
-    if (['startJob', 'claim', 'cancelJob', 'buy', 'equip'].includes(raw.type)) {
+    if (['startJob', 'claim', 'cancelJob', 'buy', 'equip', 'claimGrowth'].includes(raw.type)) {
       const next = reduce(state, action);
       if (next === state) {
         if (raw.type === 'claim' && raw.jobId && raw.jobId === state.report?.jobId) return 200;
+        if (raw.type === 'claimGrowth' && state.growthClaimed.includes(raw.id)) return 200;
         return 409;
       }
       if (!writer.commit(next)) return 503;

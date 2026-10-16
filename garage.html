@@ -197,7 +197,25 @@
       .part-actions button { flex: 1; padding: 9px; }
       #part-message { font-size: 12px; color: var(--good); }
       #part-message.error { color: var(--bad); }
-      .garage-shortcuts { margin-bottom: 12px; }
+      .garage-shortcuts { margin-bottom: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+      #growth { scroll-margin-top: 16px; }
+      .growth-summary { display: grid; grid-template-columns: auto 1fr; gap: 20px; align-items: center; margin-top: 12px; }
+      .growth-summary strong { display: block; font-size: 28px; }
+      .growth-bar { margin: 8px 0 4px; }
+      .growth-next { margin-top: 16px; padding: 14px; border: 1px solid var(--accent); border-radius: 10px; }
+      .growth-next h3 { margin: 8px 0; }
+      .growth-next p { margin: 6px 0 0; }
+      .growth-legacy { color: var(--muted); border-left: 3px solid var(--accent); padding-left: 10px; }
+      .growth-stages { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+      .growth-stage { padding: 12px; border: 1px solid var(--line); border-radius: 10px; display: flex; flex-direction: column; }
+      .growth-reached { border-color: var(--good); }
+      .growth-stage-title { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; }
+      .growth-stage-title span { font-size: 12px; color: var(--muted); }
+      .growth-stage ul { padding: 0; list-style: none; flex: 1; margin: 10px 0; }
+      .growth-stage li + li { margin-top: 8px; }
+      .growth-stage li span { display: block; font-size: 12px; }
+      .growth-stage button { width: 100%; }
+      @media (max-width: 440px) { .growth-stages { grid-template-columns: 1fr; } .growth-summary { gap: 12px; } }
       @media (max-width: 450px) { .site-grid { grid-template-columns: 1fr; } .grid { grid-template-columns: 1fr; } #part-detail { padding: 14px; } }
 </style>
   </head>
@@ -212,7 +230,7 @@
       </header>
 
       <div id="view-garage">
-      <div class="garage-shortcuts"><button id="open-catalog">零件圖鑑與搭配 ↓</button></div>
+      <div class="garage-shortcuts"><button id="open-growth">成長與解鎖 ↓</button><button id="open-catalog">零件圖鑑與搭配 ↓</button></div>
       <section class="panel">
         <div class="stage"><canvas id="preview"></canvas></div>
         <div class="row">
@@ -243,8 +261,15 @@
         </div>
       </section>
 
+      <section class="panel" id="growth" aria-labelledby="growth-title">
+        <h2 id="growth-title">成長與解鎖</h2>
+        <button id="growth-to-jobs">前往派遣累積經驗 ↓</button>
+        <div id="growth-body"></div>
+      </section>
+
       <section class="panel">
         <h2>派遣工作</h2>
+        <button id="jobs-to-growth">查看成長與解鎖 ↑</button>
         <p class="hint">選擇工地，帶著你的配置出發。完成後親自領取收穫。</p>
         <div id="report"></div>
         <div id="jobs"></div>

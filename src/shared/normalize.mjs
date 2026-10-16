@@ -3,6 +3,7 @@ import { grantsOf, loadoutFor } from './machine.mjs';
 import { DATE_RE } from './milestones.mjs';
 import { HEX_COLOR, MOOD_FLOOR, NAME_MAX, clamp, num } from './util.mjs';
 import { normalizeJob } from './jobs.mjs';
+import { GROWTH_STAGES, LEGACY_SITES } from './growth.mjs';
 
 const cleanTint = (raw) => {
   const out = {};
@@ -18,7 +19,9 @@ const cleanTint = (raw) => {
 const FREE_IDS = PARTS.filter((p) => p.price === 0).map((p) => p.id);
 
 export const DEFAULT_STATE = {
-  schemaVersion: 2,
+  schemaVersion: 3,
+  growthClaimed: [],
+  legacySites: [],
   name: '小黃',
   mood: 60,
   moodAt: 0,
@@ -94,7 +97,10 @@ export function normalize(raw) {
       : null;
   const name = typeof s.name === 'string' ? s.name.trim().slice(0, NAME_MAX) : '';
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
+    growthClaimed: [...new Set(Array.isArray(s.growthClaimed) ? s.growthClaimed.filter((id) => GROWTH_STAGES.some((g) => g.id === id)) : [])],
+    legacySites: Object.keys(s).length && num(s.schemaVersion) < 3 ? [...LEGACY_SITES]
+      : [...new Set(Array.isArray(s.legacySites) ? s.legacySites.filter((id) => LEGACY_SITES.includes(id)) : [])],
     name: name || DEFAULT_STATE.name,
     mood: clamp(num(s.mood, DEFAULT_STATE.mood), MOOD_FLOOR, 100),
     moodAt: Math.max(0, num(s.moodAt)),

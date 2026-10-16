@@ -54,7 +54,7 @@ test('elapsed time alone never claims or starts another job', () => {
 test('schema migration is stable and preserves old progress and ownership', () => {
   const raw = { ...base, job: { site: 'yard', start: 1000, end }, schemaVersion: undefined };
   const a = normalize(raw);
-  assert.equal(a.schemaVersion, 2);
+  assert.equal(a.schemaVersion, 3);
   assert.equal(a.coins, base.coins);
   assert.deepEqual(a.owned, base.owned);
   assert.deepEqual(a.job, normalize(raw).job);

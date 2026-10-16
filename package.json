@@ -20,6 +20,8 @@
     "demo:dispatch": "npm run build && node scripts/verify-dispatch.mjs --demo",
     "test:catalog": "node scripts/verify-catalog.mjs",
     "demo:catalog": "npm run build && node scripts/verify-catalog.mjs --demo",
+    "test:growth": "node scripts/verify-growth.mjs",
+    "demo:growth": "npm run build && node scripts/verify-growth.mjs --demo",
     "pack": "npm run build && node scripts/prepare-resources.mjs && electron-builder --win --dir",
     "dist": "npm run build && node scripts/prepare-resources.mjs && electron-builder --win nsis"
   },

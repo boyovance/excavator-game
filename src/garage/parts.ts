@@ -70,7 +70,7 @@ function renderDetail() {
   const rows = [ ['dig', '挖掘金幣／次'], ['job', '派遣收益倍率'], ['speed', '行走速度倍率'] ] as const;
   const fmt = (key: 'dig' | 'job' | 'speed', n: number) => key === 'dig' ? `${n}` : `×${n.toFixed(2)}`;
   const noChange = after && rows.every(([k]) => Math.abs(after[k] - before[k]) < 0.000001);
-  const sources = partSources(p, state.equipped.machine);
+  const sources = partSources(p, state.equipped.machine, state);
   $('part-detail-title').textContent = p.name;
   $('part-detail-body').innerHTML = `
     <div class="catalog-tags"><span class="catalog-tag ${state.owned.includes(p.id) ? 'owned' : ''}">${state.owned.includes(p.id) ? '已擁有' : '未擁有'}</span><span class="catalog-tag">${esc(SLOTS.find((s) => s.id === p.slot)?.name ?? p.slot)}</span></div>

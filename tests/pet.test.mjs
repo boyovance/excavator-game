@@ -31,9 +31,9 @@ ok(normalize({ mood: 3 }).mood === 40, 'an old save with a very low mood is lift
 ok(normalize({ mood: 20 }).mood === 40, 'a low mood of 20 is lifted to calm too');
 ok(reduce(m, { type: 'tick', now: 500 }).moodAt === 500, 'clock going backwards resets the clock');
 
-const job = reduce(base, { type: 'startJob', site: 'mine', now: 0 });
+const job = reduce({ ...base, xp: 500 }, { type: 'startJob', site: 'mine', now: 0 });
 const claimed = reduce(job, { type: 'claim', now: 120 * 60000, rolls: [0, 0, 0] });
-ok(claimed.xp === 300, 'mine job gives 300 xp: ' + claimed.xp);
+ok(claimed.xp - job.xp === 300, 'mine job gives 300 xp: ' + (claimed.xp - job.xp));
 
 ok(levelInfo(0).level === 1 && levelInfo(19).level === 1 && levelInfo(20).level === 2 && levelInfo(80).level === 3, 'level thresholds 0/20/80');
 ok(levelInfo(35).into === 15 && levelInfo(35).need === 60, 'level progress: ' + JSON.stringify(levelInfo(35)));

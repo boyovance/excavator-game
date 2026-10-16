@@ -83,7 +83,7 @@ ok(normalize({ owned: ['tracks_wheels'], equipped: { tracks: 'tracks_wheels' } }
 
 // drops only ever include parts the current machine can use
 for (const id of ['m_std', 'm_mini', 'm_spider', 'm_handler', 'm_mining', 'm_amph']) {
-  let st = getMachine({ ...normalize(null), coins: 99999 }, id);
+  let st = getMachine({ ...normalize(null), coins: 99999, xp: 500 }, id);
   let allFit = true;
   for (let i = 0; i < 40; i++) {
     for (const site of ['yard', 'quarry', 'mine']) {
@@ -100,7 +100,7 @@ for (const id of ['m_std', 'm_mini', 'm_spider', 'm_handler', 'm_mining', 'm_amp
 // work sites need the right machine
 import { SITES, siteById, siteOpenTo } from '../src/shared/parts.mjs';
 const startAs = (machine, site) => {
-  const st = getMachine({ ...normalize(null), coins: 99999 }, machine);
+  const st = getMachine({ ...normalize(null), coins: 99999, xp: 500 }, machine);
   return reduce(st, { type: 'startJob', site, now: 0 }).job !== null;
 };
 ok(ids.every((m) => startAs(m, 'yard')), 'every machine can work the scrap yard');
@@ -163,7 +163,7 @@ ok(machines.filter((m) => !m.workOnly).map((m) => m.id).join() === 'm_std,m_mini
 
 // a machine drop: it is kept, it brings its own parts, and an owned machine never drops again
 {
-  const st = getMachine({ ...normalize(null), coins: 99999 }, 'm_mini');
+  const st = getMachine({ ...normalize(null), coins: 99999, xp: 500 }, 'm_mini');
   const started = reduce(st, { type: 'startJob', site: 'slope', now: 0 });
   const claim = (state, pick) => claimWithRolls(state, { type: 'claim', now: 1e12, rolls: [0.5, 0.5, 0.9, 1, 0, 1, 0, 1, 0, 0.0, pick] });
   const won = claim(started, 0.1);

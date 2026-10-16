@@ -1,4 +1,4 @@
-import { TINT_SLOTS, fitsMachine, partById, siteById, siteOpenTo } from './parts.mjs';
+import { TINT_SLOTS, fitsMachine, partById, siteById } from './parts.mjs';
 import { grantsOf, switchMachine } from './machine.mjs';
 import { DAY_MS, MILESTONES, companionDays, localDate, startOfDay } from './milestones.mjs';
 import { DEFAULT_STATE, normalize } from './normalize.mjs';
@@ -6,6 +6,7 @@ import { repairCost } from './info.mjs';
 import { claimJob, digCoins } from './rewards.mjs';
 import { HEX_COLOR, MOOD_FLOOR, NAME_MAX, clamp, num, withMood } from './util.mjs';
 import { normalizeJob } from './jobs.mjs';
+import { canVisitSite, claimGrowth } from './growth.mjs';
 
 export { MILESTONES, companionDays } from './milestones.mjs';
 export { DEFAULT_STATE, normalize } from './normalize.mjs';
@@ -19,6 +20,8 @@ const MOOD_BASELINE = 55;
 
 export function reduce(state, action) {
   switch (action.type) {
+    case 'claimGrowth':
+      return claimGrowth(state, action.id);
     case 'dig':
       if (state.durability <= 0) return state;
       return {
@@ -133,7 +136,7 @@ export function reduce(state, action) {
 
     case 'startJob': {
       const site = siteById(action.site);
-      if (!site || state.job || state.durability <= 0 || !siteOpenTo(site, state.equipped.machine)) return state;
+      if (!site || state.job || state.durability <= 0 || !canVisitSite(state, site)) return state;
       const now = num(action.now);
       return { ...state, job: normalizeJob({ id: action.id, site: site.id, start: now, end: now + site.minutes * 60000,
         equippedSnapshot: { ...state.equipped }, rolls: action.rolls }, state.equipped, state.owned) };
