@@ -1,5 +1,6 @@
 import { DEFAULT_EQUIPPED, partById, siteById } from './parts.mjs';
 import { loadoutFor } from './machine.mjs';
+import { economyVersion } from './economy.mjs';
 
 export const RULES_VERSION = 1;
 export const ROLLS_NEEDED = 11;
@@ -32,5 +33,5 @@ export function normalizeJob(raw, equipped, owned) {
   }
   const rolls = Array.isArray(raw.rolls) && raw.rolls.length === ROLLS_NEEDED && raw.rolls.every((r) => Number.isFinite(r) && r >= 0 && r < 1)
     ? [...raw.rolls] : legacyRolls(id);
-  return { id, site: raw.site, start: raw.start, end: raw.end, machineId, equippedSnapshot: snapshot, rulesVersion: RULES_VERSION, rolls };
+  return { id, site: raw.site, start: raw.start, end: raw.end, machineId, equippedSnapshot: snapshot, rulesVersion: economyVersion(raw.rulesVersion), rolls };
 }

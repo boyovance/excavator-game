@@ -1,0 +1,93 @@
+const { app, BrowserWindow, nativeTheme, session } = require('electron');
+const fs = require('node:fs');
+const path = require('node:path');
+const assert = require('node:assert/strict');
+const { pathToFileURL } = require('node:url');
+const dir = process.env.EXCAVATOR_USER_DATA;
+assert(path.basename(dir ?? '').startsWith('exc-balance-ui-'));
+app.setPath('userData', dir);
+const demo = process.env.EXCAVATOR_BALANCE_DEMO === '1';
+const output = process.env.EXCAVATOR_BALANCE_OUTPUT;
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const errors = [];
+let win;
+async function until(fn) { for (let i = 0; i < 300; i++) { if (await fn()) return; await wait(50); } throw Error('Balance UI timeout'); }
+app.on('window-all-closed', () => app.quit());
+(async () => {
+  await app.whenReady(); nativeTheme.themeSource = 'light';
+  session.defaultSession.setPermissionRequestHandler((_web, _permission, cb) => cb(false));
+  session.defaultSession.setPermissionCheckHandler(() => false);
+  win = new BrowserWindow({ width: 1060, height: 850, show: demo, autoHideMenuBar: true,
+    title: '經濟平衡驗收 — 獨立沙盒，不影響正式存檔', webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false } });
+  const url = pathToFileURL(path.resolve(__dirname, '../dist/balance.html')).href;
+  win.webContents.on('will-navigate', (event) => event.preventDefault());
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  win.webContents.on('will-attach-webview', (event) => event.preventDefault());
+  win.webContents.on('console-message', (detail) => { if (detail.level === 'error') errors.push(detail.message); });
+  await win.loadURL(url);
+  const js = (code) => win.webContents.executeJavaScript(code);
+  await until(() => js('document.querySelector("#comparison-status").textContent.includes("比較完成")'));
+  if (demo) { win.show(); win.focus(); console.log('Demo ready: compare original/candidate income, then simulate dispatch, repairs and purchases in the isolated sandbox.'); return; }
+  const choose = async (id, value) => { await js(`document.querySelector('#${id}').value=${JSON.stringify(value)};document.querySelector('#${id}').dispatchEvent(new Event('change'))`); };
+  const click = (id) => js(`document.querySelector('#${id}').click()`);
+  const shot = async (id) => {
+    for (let i = 0; i < 3; i++) {
+      await wait(300);
+      try { const img = await win.webContents.capturePage(undefined, { stayHidden: true, stayAwake: true }); assert(!img.isEmpty()); fs.writeFileSync(path.join(output, id + '.png'), img.toPNG()); return; }
+      catch (error) { if (i === 2) throw error; }
+    }
+  };
+  assert(await js('typeof window.api === "undefined" && typeof require === "undefined"'));
+  assert.equal(await js('document.querySelectorAll("[data-compare-site]").length'), 5);
+  const first = await js('document.querySelector("#balance-rows").textContent');
+  await click('balance-run'); await until(() => js('document.querySelector("#comparison-status").textContent.includes("比較完成")'));
+  assert.equal(await js('document.querySelector("#balance-rows").textContent'), first);
+  await shot('01-comparison');
+  await choose('balance-machine', 'm_mini'); await until(() => js('document.querySelectorAll("[data-compare-site]").length === 3'));
+  await choose('balance-collection', 'full'); await until(() => js('document.querySelector("#comparison-status").textContent.includes("比較完成")'));
+  assert(await js('[...document.querySelectorAll("#balance-rows tr")].every(r=>r.lastElementChild.textContent === "0.0")'));
+  await choose('balance-machine', 'm_std'); await until(() => js('document.querySelectorAll("[data-compare-site]").length === 5'));
+  await choose('balance-collection', 'starter'); await until(() => js('document.querySelector("#comparison-status").textContent.includes("比較完成")'));
+  await choose('trial-preset', 'repair');
+  assert(await js('document.querySelector("#trial-trip").disabled && document.querySelector("#trial-repair").disabled'));
+  await choose('trial-version', '1'); assert(await js('!document.querySelector("#trial-trip").disabled'));
+  await click('trial-trip'); assert.equal(await js('document.querySelector("#trial-durability").textContent'), '1');
+  await choose('trial-version', '2'); assert.equal(await js('document.querySelector("#trial-coins").textContent'), '0');
+  await click('trial-rest'); assert.equal(await js('document.querySelector("#trial-durability").textContent'), '15');
+  await click('trial-trip'); assert.equal(await js('document.querySelector("#trial-durability").textContent'), '7');
+  assert(await js('Number(document.querySelector("#trial-coins").textContent)>0'));
+  await js('document.querySelector("#trial-title").scrollIntoView()'); await shot('02-trial');
+  await choose('trial-preset', 'new');
+  assert(await js('document.querySelector("#trial-site option[value=mine]").disabled'));
+  const mini = await js('document.querySelector("#trial-buy").disabled'); assert(mini);
+  for (let i = 0; i < 12; i++) {
+    await click('trial-trip'); await click('trial-repair');
+    await js('document.querySelectorAll("[data-trial-growth]").forEach(b=>b.click())');
+    if (await js('!document.querySelector("#trial-buy").disabled')) break;
+  }
+  const coins = await js('Number(document.querySelector("#trial-coins").textContent)');
+  assert(coins >= 150); await click('trial-buy');
+  assert.equal(await js('Number(document.querySelector("#trial-coins").textContent)'), coins - 150);
+  assert(await js('document.querySelector("#trial-description").textContent.includes("目前機型：微型挖掘機")'));
+  assert(await js('document.querySelector("#trial-buy").disabled'));
+  await click('trial-buy'); assert.equal(await js('Number(document.querySelector("#trial-coins").textContent)'), coins - 150);
+  await shot('03-purchase');
+  win.setContentSize(380, 760); await wait(100);
+  assert(await js('document.documentElement.scrollWidth <= innerWidth'));
+  await shot('04-narrow');
+  win.setContentSize(1060, 800); nativeTheme.themeSource = 'dark'; await js('window.scrollTo(0,0)'); await shot('05-dark');
+  await new Promise((resolve) => { win.webContents.once('did-finish-load', resolve); win.webContents.reload(); });
+  await until(() => js('document.querySelector("#comparison-status").textContent.includes("比較完成")'));
+  assert.equal(await js('document.querySelector("#trial-coins").textContent'), '150');
+  assert.equal(fs.existsSync(path.join(dir, 'state.json')), false);
+  assert.equal(errors.length, 0, errors.join('\n'));
+  const report = path.join(output, 'report.html');
+  if (fs.existsSync(report)) {
+    nativeTheme.themeSource = 'light';
+    await win.loadURL(pathToFileURL(report).href);
+    assert(await js('document.querySelectorAll("table").length >= 3'));
+    await shot('06-report');
+  }
+  console.log('PASS Economy sandbox: reproducible comparison, machine/collection filters, no native API, repair gate, free recovery, growth rewards, purchase, reset, narrow/dark and no save persistence');
+  app.quit();
+})().catch(async (error) => { console.error(error); if (win) { try { fs.writeFileSync(path.join(output, 'failure.png'), (await win.webContents.capturePage()).toPNG()); } catch {} } app.exit(1); });

@@ -111,4 +111,5 @@ export function levelInfo(xp: number): { level: number; into: number; need: numb
 export function moodLabel(mood: number): string;
 export function digCoins(equipped: Record<string, string>): number;
 export function stamp(action: Action, now?: number): Action;
-export function reduce(state: GameState, action: Action): GameState;
+/** previewVersion is only set by the isolated balance sandbox, never from client actions. */
+export function reduce(state: GameState, action: Action, previewVersion?: number): GameState;

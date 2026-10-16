@@ -1,0 +1,20 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import electron from 'electron';
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'exc-balance-ui-'));
+const demo = process.argv.includes('--demo');
+const output = path.resolve('artifacts/balance');
+fs.mkdirSync(output, { recursive: true });
+const env = { ...process.env, EXCAVATOR_USER_DATA: dir, EXCAVATOR_BALANCE_OUTPUT: output, EXCAVATOR_BALANCE_DEMO: demo ? '1' : '0' };
+for (const key of ['ELECTRON_RUN_AS_NODE', 'EXCAVATOR_SERVER_URL', 'EXCAVATOR_TOKEN', 'VITE_DEV_SERVER_URL']) delete env[key];
+console.log(`Isolated economy ${demo ? 'demo' : 'test'} profile: ${dir}`);
+const child = spawn(electron, [fileURLToPath(new URL('./verify-balance.cjs', import.meta.url))], { env, stdio: 'inherit', windowsHide: true });
+const timeout = demo ? null : setTimeout(() => child.kill(), 90_000);
+child.on('exit', (code) => {
+  clearTimeout(timeout);
+  if (code === 0 && !demo) fs.rmSync(dir, { recursive: true, force: true });
+  process.exitCode = code === 0 ? 0 : 1;
+});

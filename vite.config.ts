@@ -11,6 +11,7 @@ export default defineConfig({
       input: {
         main: resolve(process.cwd(), 'index.html'),
         garage: resolve(process.cwd(), 'garage.html'),
+        balance: resolve(process.cwd(), 'balance.html'),
       },
     },
   },

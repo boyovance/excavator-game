@@ -27,4 +27,6 @@ jobs:
       - if: runner.os == 'Windows'
         run: npm run test:growth
       - if: runner.os == 'Windows'
+        run: npm run test:balance
+      - if: runner.os == 'Windows'
         run: npm run pack
