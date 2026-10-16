@@ -2,6 +2,7 @@ const { app, nativeTheme } = require('electron');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { bannerScript } = require('./demo-banner.cjs');
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const demo = process.env.EXCAVATOR_DISPATCH_DEMO === '1';
 const output = process.env.EXCAVATOR_DISPATCH_OUTPUT;
@@ -41,10 +42,28 @@ async function until(check) {
   // Existing game art and production renderer, deterministic test rewards only.
   await replace({ ...ctx.gameState, name: '派遣測試', coins: 120, xp: 0, durability: 100, owned: [...ctx.gameState.owned, 'stick_long', 'acc_beacon'], equipped: { ...ctx.gameState.equipped, stick: 'stick_long' } });
   await until(() => js('document.querySelector("#pet-name").value === "派遣測試"'));
-  await js(`const badge = document.createElement('div'); badge.textContent = '派遣驗收演示 · 獨立存檔 · 測試已加速計時'; badge.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:50;background:#283b35;color:white;text-align:center;font-size:12px;padding:5px;pointer-events:none'; document.body.append(badge);`);
+  await js(bannerScript('派遣驗收演示 · 獨立測試存檔 · 測試已加速計時，不影響正式進度'));
   ctx.garageWin.setTitle('派遣驗收演示 — 不影響正式存檔');
   const focusJobs = () => js('document.querySelector("#jobs").closest("section").scrollIntoView(); window.scrollBy(0,-38)');
   const shot = async (name) => { await wait(250); fs.writeFileSync(path.join(output, `${name}.png`), (await g.capturePage()).toPNG()); };
+  const originalSize = ctx.garageWin.getContentSize();
+  for (const width of [originalSize[0], 380]) {
+    ctx.garageWin.setContentSize(width, originalSize[1]);
+    await wait(100);
+    await js('window.scrollTo(0,0)');
+    assert(await js(`(() => {
+      const badge = document.querySelector('[data-demo-banner]').getBoundingClientRect();
+      const header = document.querySelector('header').getBoundingClientRect();
+      return badge.bottom <= header.top && document.documentElement.scrollWidth <= innerWidth &&
+        [...document.querySelectorAll('header button')].every(button => {
+          const box = button.getBoundingClientRect();
+          return button.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
+        });
+    })()`), `Demo notice must not cover header controls at width ${width}`);
+    await shot(width === 380 ? '00-header-narrow' : '00-header');
+  }
+  ctx.garageWin.setContentSize(...originalSize);
+  console.log('PASS Demo notice: normal and narrow windows keep header controls unobstructed');
   await focusJobs(); await shot('01-sites');
   await js('document.querySelector("[data-site=yard]").click()');
   assert(await js('document.querySelector("#job-confirm").open'));
@@ -109,7 +128,7 @@ async function until(check) {
   if (demo) {
     updateSettings({ jobMode: 'stay' });
     ctx.garageWin.show(); ctx.garageWin.focus();
-    await js(`const badge=document.createElement('div'); badge.textContent='驗收演示 · 獨立測試存檔 · 可直接領取，不影響正式進度'; badge.style.cssText='position:fixed;top:0;left:0;right:0;z-index:50;background:#283b35;color:white;text-align:center;font-size:12px;padding:5px'; document.body.append(badge)`);
+    await js(bannerScript('驗收演示 · 獨立測試存檔 · 可直接領取，不影響正式進度'));
     ctx.garageWin.setTitle('派遣驗收演示 — 不影響正式存檔');
     await focusJobs();
     console.log('Demo ready: a completed job is waiting for your manual claim. Close via the tray Quit command.');
