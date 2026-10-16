@@ -9,38 +9,49 @@ const { dispatch } = require('./server.cjs');
 const { publicSettings, updateSettings } = require('./settings.cjs');
 const { buildMenu, refreshMenus } = require('./tray.cjs');
 const { openGarage } = require('./windows.cjs');
+const { trustedSender } = require('./security.cjs');
 
 function registerIpc() {
-  ipcMain.handle('export-save', exportSave);
-  ipcMain.handle('import-save', importSave);
-  ipcMain.handle('reset-save', resetSave);
-  ipcMain.handle('get-displays', () => listDisplays());
-  ipcMain.on('open-folder', (_e, kind) => {
+  const handle = (channel, fn) => ipcMain.handle(channel, (event, ...args) => {
+    if (!trustedSender(event)) throw new Error('Untrusted IPC sender');
+    return fn(event, ...args);
+  });
+  const on = (channel, fn) => ipcMain.on(channel, (event, ...args) => {
+    if (trustedSender(event)) fn(event, ...args);
+  });
+  handle('export-save', exportSave);
+  handle('import-save', importSave);
+  handle('reset-save', resetSave);
+  handle('get-displays', () => listDisplays());
+  on('open-folder', (_e, kind) => {
     const target = kind === 'logs' ? logDir() : kind === 'backups' ? userFile('backups') : kind === 'data' ? app.getPath('userData') : null;
     if (!target) return;
     fs.mkdirSync(target, { recursive: true });
     shell.openPath(target);
   });
-  ipcMain.on('renderer-error', (_e, message) => logLine('renderer-error', String(message).slice(0, 2000)));
+  on('renderer-error', (_e, message) => logLine('renderer-error', String(message).slice(0, 2000)));
 
-  ipcMain.handle('get-settings', () => publicSettings());
-  ipcMain.handle('get-state', () => ctx.gameState);
-  ipcMain.handle('get-packs', () => ctx.packs);
-  ipcMain.on('set-settings', (_e, patch) => updateSettings(patch));
-  ipcMain.on('dispatch', (_e, action) => {
+  handle('get-settings', () => publicSettings());
+  handle('get-state', () => ctx.gameState);
+  handle('get-packs', () => ctx.packs);
+  on('set-settings', (_e, patch) => updateSettings(patch));
+  on('dispatch', (_e, action) => {
     if (action && typeof action.type === 'string') dispatch(action);
   });
-  ipcMain.on('register-skins', (_e, list) => {
-    ctx.skins = list;
+  on('register-skins', (_e, list) => {
+    if (!Array.isArray(list) || list.length > 100) return;
+    ctx.skins = list.filter((s) => s && typeof s.id === 'string' && s.id.length <= 64 && typeof s.name === 'string' && s.name.length <= 80)
+      .map(({ id, name }) => ({ id, name }));
     refreshMenus();
   });
-  ipcMain.on('set-interactive', (e, v) => {
+  on('set-interactive', (e, v) => {
+    if (typeof v !== 'boolean') return;
     if (ctx.win && e.sender === ctx.win.webContents) ctx.win.setIgnoreMouseEvents(!v, { forward: true });
   });
-  ipcMain.on('show-menu', () => {
+  on('show-menu', () => {
     if (ctx.rules && ctx.gameState) buildMenu().popup();
   });
-  ipcMain.on('open-garage', (_e, tab) => openGarage(tab));
+  on('open-garage', (_e, tab) => openGarage(tab));
 }
 
 module.exports = { registerIpc };

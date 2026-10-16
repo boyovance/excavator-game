@@ -22,6 +22,7 @@ function backupCurrentSave() {
     for (const f of old.slice(0, Math.max(0, old.length - BACKUP_KEEP))) fs.rmSync(path.join(dir, f), { force: true });
   } catch (err) {
     logLine('backup-failed', err);
+    throw err;
   }
 }
 
@@ -29,6 +30,7 @@ async function replaceSave(nextState) {
   backupCurrentSave();
   const res = await call('/admin/replace', { method: 'POST', body: JSON.stringify({ state: nextState }) });
   if (!res.ok) throw new Error(`server answered ${res.status}`);
+  ctx.gameState = await res.json();
 }
 
 const dialogParent = () => ctx.garageWin ?? undefined;

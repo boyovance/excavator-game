@@ -20,7 +20,7 @@ bindPet();
 skinEl.addEventListener('change', () => api.setSettings({ skin: skinEl.value }));
 
 function renderSkinOptions() {
-  skinEl.innerHTML = SKINS.map((s) => `<option value="${s.id}">${s.name}</option>`).join('');
+  skinEl.replaceChildren(...SKINS.map((s) => new Option(s.name, s.id)));
   skinEl.value = ui.settings.skin;
 }
 

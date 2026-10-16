@@ -26,8 +26,8 @@ console.log(`data: ${dataDir}`);
 console.log(`token: ${tokenFile}`);
 
 const stop = async () => {
-  await server.close();
-  process.exit(0);
+  const saved = await server.close();
+  process.exit(saved ? 0 : 1);
 };
 process.on('SIGINT', stop);
 process.on('SIGTERM', stop);

@@ -44,7 +44,7 @@ export async function renderDisplays() {
   const list = await api.getDisplays();
   const el = $<HTMLSelectElement>('set-display');
   const options = [{ id: 'primary', label: '主螢幕(自動)' }, ...list];
-  el.innerHTML = options.map((d) => `<option value="${d.id}">${d.label}</option>`).join('');
+  el.replaceChildren(...options.map((d) => new Option(d.label, d.id)));
   el.value = options.some((d) => d.id === ui.settings.display) ? ui.settings.display : 'primary';
 }
 

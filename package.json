@@ -2,6 +2,7 @@
   "name": "excavator-game",
   "version": "0.7.3",
   "private": true,
+  "engines": { "node": ">=24.0.0 <25" },
   "type": "module",
   "description": "Desktop-pet excavator: a little machine that works, grows and keeps you company",
   "main": "electron/main.cjs",
@@ -14,8 +15,9 @@
     "icon": "node scripts/make-icon.cjs",
     "test": "node tests/run.mjs",
     "pack-content": "node scripts/pack-content.mjs",
-    "pack": "npm run build && electron-builder --win --dir",
-    "dist": "npm run build && electron-builder --win nsis"
+    "smoke": "node scripts/smoke-electron.mjs",
+    "pack": "npm run build && node scripts/prepare-resources.mjs && electron-builder --win --dir",
+    "dist": "npm run build && node scripts/prepare-resources.mjs && electron-builder --win nsis"
   },
   "build": {
     "appId": "com.excavator.pet",
@@ -55,10 +57,10 @@
       "createStartMenuShortcut": true,
       "language": "1028"
     },
-    "copyright": "Copyright 漏 Excavator Pet"
+    "copyright": "Copyright © Excavator Pet"
   },
   "devDependencies": {
-    "concurrently": "^10.0.5",
+    "concurrently": "^10.0.6",
     "cross-env": "^10.1.0",
     "electron": "^44.5.1",
     "electron-builder": "^26.15.3",
@@ -66,6 +68,9 @@
     "typescript": "^7.0.2",
     "vite": "^8.3.2",
     "wait-on": "^9.5.1"
+  },
+  "overrides": {
+    "@electron/get": { "global-agent": "^4.1.3" }
   },
   "author": "Excavator Pet"
 }

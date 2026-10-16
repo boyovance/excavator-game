@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const path = require('path');
 const ctx = require('./context.cjs');
 const { importLocal } = require('./paths.cjs');
+const { logLine } = require('./log.cjs');
 
 const eventsAbort = new AbortController();
 
@@ -20,6 +21,7 @@ async function startBackend() {
     dataDir: app.getPath('userData'),
     token: ctx.serverToken,
     port: 0,
+    onSaveError: (err) => logLine('state-save-failed', err),
     contentDir: app.isPackaged
       ? path.join(process.resourcesPath, 'content-dist')
       : path.join(__dirname, '..', 'content-dist'),
@@ -35,7 +37,9 @@ function call(pathname, init = {}) {
 }
 
 function dispatch(action) {
-  call('/dispatch', { method: 'POST', body: JSON.stringify(action) }).catch(() => {});
+  call('/dispatch', { method: 'POST', body: JSON.stringify(action) })
+    .then((res) => { if (!res.ok) throw new Error(`dispatch: HTTP ${res.status}`); })
+    .catch((err) => logLine('dispatch-failed', err));
 }
 
 async function listenForState(onServerState) {

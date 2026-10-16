@@ -3,12 +3,12 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { normalize, reduce, stamp } from '../src/shared/reducer.mjs';
+import persistence from './persistence.cjs';
 
 const MAX_BODY = 4096;
 const MAX_ADMIN_BODY = 65_536;
 const TICK_INTERVAL_MS = 30_000;
 const HEARTBEAT_MS = 25_000;
-const SAVE_DELAY_MS = 300;
 
 // Only these may come from a client. Amounts, time and dice are decided here, never by the client.
 const CLIENT_ACTIONS = new Set([
@@ -82,7 +82,7 @@ function firstSeen(dir, fallback) {
   return earliest;
 }
 
-export async function startServer({ dataDir, token, port = 0, host = '127.0.0.1', now = Date.now, contentDir = null }) {
+export async function startServer({ dataDir, token, port = 0, host = '127.0.0.1', now = Date.now, contentDir = null, onSaveError = (err) => console.error('Save failed; will retry:', err) }) {
   if (!token) throw new Error('startServer: token is required');
   fs.mkdirSync(dataDir, { recursive: true });
   const file = path.join(dataDir, 'state.json');
@@ -106,19 +106,8 @@ export async function startServer({ dataDir, token, port = 0, host = '127.0.0.1'
   }
   state = reduce(state, { type: 'tick', now: now() });
 
-  let saveTimer = null;
-  const flush = () => {
-    clearTimeout(saveTimer);
-    saveTimer = null;
-    try {
-      if (fs.existsSync(file)) fs.copyFileSync(file, backup);
-      fs.writeFileSync(`${file}.tmp`, JSON.stringify(state, null, 2));
-      fs.renameSync(`${file}.tmp`, file);
-    } catch {}
-  };
-  const scheduleSave = () => {
-    saveTimer ??= setTimeout(flush, SAVE_DELAY_MS);
-  };
+  const writer = persistence.createJsonWriter({ file, backup, onError: onSaveError });
+  const scheduleSave = () => writer.schedule(state);
 
   const clients = new Set();
   const lastAt = {};
@@ -230,9 +219,10 @@ export async function startServer({ dataDir, token, port = 0, host = '127.0.0.1'
         if (!body || typeof body !== 'object' || !('state' in body)) return json(res, 400, { error: 'bad-request' });
         const fresh = normalize(body.state);
         // an imported save keeps its own first day; a reset starts a new one
-        state = reduce({ ...fresh, moodAt: now(), since: fresh.since || now() }, { type: 'tick', now: now() });
+        const next = reduce({ ...fresh, moodAt: now(), since: fresh.since || now() }, { type: 'tick', now: now() });
+        if (!writer.commit(next)) return json(res, 503, { error: 'save-failed' });
+        state = next;
         for (const k of Object.keys(lastAt)) delete lastAt[k];
-        flush();
         publish();
         json(res, 200, state);
       });
@@ -247,6 +237,7 @@ export async function startServer({ dataDir, token, port = 0, host = '127.0.0.1'
   });
 
   const ticker = setInterval(tick, TICK_INTERVAL_MS);
+  scheduleSave();
   const heartbeat = setInterval(() => {
     for (const res of clients) res.write(': ping\n\n');
   }, HEARTBEAT_MS);
@@ -259,11 +250,13 @@ export async function startServer({ dataDir, token, port = 0, host = '127.0.0.1'
       clearInterval(heartbeat);
       for (const res of clients) res.end();
       clients.clear();
-      flush();
+      writer.schedule(state);
+      const saved = writer.close();
       await new Promise((resolve) => {
         server.close(resolve);
         server.closeAllConnections?.();
       });
+      return saved;
     },
   };
 }

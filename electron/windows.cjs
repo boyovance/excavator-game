@@ -1,5 +1,7 @@
 const { BrowserWindow, powerMonitor, screen } = require('electron');
 const path = require('path');
+const { pathToFileURL } = require('url');
+const { protectWindow } = require('./security.cjs');
 const ctx = require('./context.cjs');
 const { listDisplays, placeWindow, targetDisplay } = require('./displays.cjs');
 
@@ -13,8 +15,12 @@ function pageTarget(target, page, hash = '', query = {}) {
     const url = new URL(page, devUrl);
     url.hash = hash;
     for (const [k, v] of Object.entries(query)) url.searchParams.set(k, v);
+    protectWindow(target, url.href);
     target.loadURL(url.toString());
   } else {
+    const url = pathToFileURL(path.join(__dirname, '..', 'dist', page));
+    for (const [k, v] of Object.entries(query)) url.searchParams.set(k, v);
+    protectWindow(target, url.href);
     target.loadFile(path.join(__dirname, '..', 'dist', page), { hash, query });
   }
 }
@@ -34,6 +40,8 @@ function createWindow({ onResume }) {
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
     },
   });
   ctx.win.setAlwaysOnTop(true, 'floating');
@@ -70,6 +78,8 @@ function openGarage(tab) {
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
     },
   });
   ctx.garageWin.setMenu(null);

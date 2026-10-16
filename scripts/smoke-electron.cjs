@@ -1,0 +1,38 @@
+const { app, BrowserWindow } = require('electron');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const errors = [];
+app.on('browser-window-created', (_event, win) => {
+  win.hide();
+  win.webContents.on('console-message', (details) => {
+    if (details.level === 'error') errors.push(details.message);
+  });
+});
+require('../electron/main.cjs');
+const ctx = require('../electron/context.cjs');
+async function until(check) {
+  for (let i = 0; i < 200; i++) { if (await check()) return; await wait(50); }
+  throw new Error('Timed out waiting for Electron UI');
+}
+(async () => {
+  await app.whenReady();
+  await until(() => ctx.win && ctx.garageWin && !ctx.win.webContents.isLoading() && !ctx.garageWin.webContents.isLoading());
+  const pet = ctx.win.webContents;
+  const garage = ctx.garageWin.webContents;
+  await until(() => pet.executeJavaScript('!!window.__excavator && !!document.querySelector("canvas")'));
+  await until(() => garage.executeJavaScript('document.querySelector("#skin").options.length >= 3'));
+  assert.equal(await pet.executeJavaScript('typeof window.api.getState'), 'function');
+  assert.equal(await garage.executeJavaScript('typeof require'), 'undefined');
+  await garage.executeJavaScript('window.api.dispatch({ type: "rename", name: "Smoke" }); window.api.setSettings({ scale: 2 });');
+  await until(() => ctx.gameState?.name === 'Smoke' && ctx.settings.scale === 2);
+  assert.equal(await garage.executeJavaScript('window.api.getState().then(s => s.name)'), 'Smoke');
+  await pet.executeJavaScript('window.__cspProbe = 0; const s = document.createElement("script"); s.textContent = "window.__cspProbe = 1"; document.body.append(s);');
+  assert.equal(await pet.executeJavaScript('window.__cspProbe'), 0);
+  assert.equal(errors.filter((s) => !s.includes('inline script')).length, 0, errors.join('\n'));
+  const log = path.join(app.getPath('userData'), 'logs', 'app.log');
+  if (fs.existsSync(log)) assert.doesNotMatch(fs.readFileSync(log, 'utf8'), /renderer-error|main-error|main-rejection/);
+  console.log('PASS Electron: both pages boot, sandbox/preload/IPC/SSE work, state changes propagate, CSP blocks inline scripts');
+  app.quit();
+})().catch((err) => { console.error(err); app.exit(1); });
