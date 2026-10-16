@@ -37,7 +37,7 @@ async function until(fn) {
   };
   const seed = ctx.rules.reduce(ctx.rules.normalize({ schemaVersion: 3, xp: 68, coins: 120, name: '成長測試', growthClaimed: ['level-2'] }),
     { type: 'startJob', site: 'yard', id: 'growth-demo-job', now: Date.now() - 301000, rolls: [0.5, 0.5, 0.99, 0, 0, 0.99, 0, 0.99, 0, 0.99, 0] });
-  const badge = () => js(bannerScript('成長驗收 · 獨立存檔 · 派遣領收穫 → 升至 Lv.3 → 領取階段獎勵'));
+  const badge = () => js(bannerScript('整合結果驗收 · 獨立存檔 · 領取收穫後自動展示升級，可當場領獎'));
   const scroll = (id) => js(`document.querySelector(${JSON.stringify(id)}).scrollIntoView({block:'start'})`);
   const shot = async (id) => {
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -48,6 +48,12 @@ async function until(fn) {
       } catch (err) { if (attempt === 2) throw err; }
     }
   };
+  if (demo) {
+    await replace(seed); await badge(); await scroll('#jobs');
+    ctx.garageWin.setTitle('派遣升級整合結果驗收 — 獨立測試存檔'); ctx.garageWin.show(); ctx.garageWin.focus();
+    console.log('Demo ready: click claim on the completed yard job; the integrated level-up result opens automatically with a 30-coin reward button.');
+    return;
+  }
   // New-player gates and source information must agree.
   await replace({ ...ctx.rules.normalize(null), xp: 19 });
   assert(await js('document.querySelector("[data-site=yard]").disabled === false'));
@@ -58,37 +64,60 @@ async function until(fn) {
   assert(await js('document.querySelector("#part-detail-sources").textContent.includes("Lv.6 解鎖")'));
   await js('document.querySelector("#part-close").click()'); await wait(100);
   await replace({ ...ctx.rules.normalize(null), xp: 20 });
+  assert.equal(await js('document.querySelector("#dispatch-result").open'), false);
   assert(await js('!document.querySelector("[data-growth-claim=level-2]").disabled'));
   assert(await js('document.querySelector("[data-site=alley]").textContent === "機型不符"'));
   await replace(seed); await badge(); await scroll('#growth');
   assert(await js('document.querySelector(".growth-next").textContent.includes("12 經驗")'));
   await shot('01-next-goal');
   await js('document.querySelector("#growth-to-jobs").click()'); await wait(500);
+  const blocked = path.join(app.getPath('userData'), 'state.json.tmp');
+  fs.mkdirSync(blocked);
   await js('document.querySelector("[data-job=claim]").click()');
-  await until(() => ctx.gameState.xp === 80 && js('document.querySelector(".growth-summary strong").textContent === "Lv.3"'));
+  await until(() => js('document.querySelector("#job-message").textContent.includes("存檔失敗")'));
+  assert.equal(await js('document.querySelector("#dispatch-result").open'), false);
+  assert.equal(ctx.gameState.xp, 68);
+  fs.rmdirSync(blocked);
+  await js('document.querySelector("[data-job=claim]").click()');
+  await until(() => ctx.gameState.xp === 80 && js('document.querySelector("#dispatch-result").open'));
   assert.equal(ctx.gameState.xp, 80);
   assert(await js('document.querySelector("[data-site=quarry]").disabled === false'));
   assert(await js('document.querySelector("[data-site=river]").disabled'));
   assert(await js('document.querySelector("#growth-message").textContent.includes("升級至 Lv.3")'));
-  await scroll('#growth'); await shot('02-level-up');
+  assert(await js('document.querySelector("#dispatch-result-body").textContent.includes("派遣收穫 · 已入庫")'));
+  assert(await js('document.querySelector(".result-level").textContent === "Lv.2→Lv.3"'));
+  assert(await js('document.querySelector(".result-sites").textContent.includes("採石場")'));
+  assert(await js('document.querySelectorAll("dialog[open]").length === 1'));
+  await shot('02-level-up');
+  const modalSize = ctx.garageWin.getContentSize();
+  ctx.garageWin.setContentSize(380, modalSize[1]); await wait(100);
+  assert(await js('document.querySelector("#dispatch-result").scrollWidth <= document.querySelector("#dispatch-result").clientWidth'));
+  await shot('07-integrated-narrow');
+  ctx.garageWin.setContentSize(...modalSize);
+  nativeTheme.themeSource = 'dark'; await shot('08-integrated-dark'); nativeTheme.themeSource = 'light';
   const coins = ctx.gameState.coins;
-  const blocked = path.join(app.getPath('userData'), 'state.json.tmp');
   fs.mkdirSync(blocked);
-  await js('document.querySelector("[data-growth-claim=level-3]").click()');
-  await until(() => js('document.querySelector("#growth-message").textContent.includes("存檔失敗")'));
+  await js('document.querySelector("[data-result-claim=level-3]").click()');
+  await until(() => js('document.querySelector("#dispatch-result-message").textContent.includes("存檔失敗")'));
   assert.equal(ctx.gameState.coins, coins); assert(!ctx.gameState.growthClaimed.includes('level-3'));
   fs.rmdirSync(blocked);
-  await js('document.querySelector("[data-growth-claim=level-3]").click(); document.querySelector("[data-growth-claim=level-3]").click()');
-  await until(() => js('document.querySelector("#growth-message").textContent.includes("已入帳並儲存")'));
+  await js('document.querySelector("[data-result-claim=level-3]").click(); document.querySelector("[data-result-claim=level-3]").click()');
+  await until(() => js('document.querySelector("#dispatch-result-message").textContent.includes("已入帳並儲存")'));
   assert.equal(ctx.gameState.coins, coins + 30);
   assert(await js('document.querySelector("[data-growth-claim=level-3]").disabled'));
+  assert(await js('document.querySelector("[data-result-claim=level-3]").disabled'));
+  assert(await js('document.querySelector("#dispatch-result-close").textContent === "完成"'));
   await shot('03-reward-claimed');
+  await js('document.querySelector("#dispatch-result-close").click()'); await wait(80);
+  await js('window.api.requestAction({type:"claim",jobId:"growth-demo-job"})');
+  assert.equal(await js('document.querySelector("#dispatch-result").open'), false);
   await new Promise((resolve) => { g.once('did-finish-load', resolve); g.reload(); });
   await until(() => js('document.querySelector("[data-growth-claim=level-3]")?.textContent.includes("已領取")'));
   assert.equal(ctx.gameState.coins, coins + 30);
+  assert.equal(await js('document.querySelector("#dispatch-result").open'), false);
   assert((await js('window.api.requestAction({type:"claimGrowth",id:"level-3"})')).ok);
   assert.equal(ctx.gameState.coins, coins + 30);
-  console.log('PASS Growth UI: threshold, machine restrictions, source gate, dispatch level-up, unlock, save failure, retry, double-click and reload');
+  console.log('PASS Growth UI: automatic integrated result, separate rewards, narrow/dark modal, failed saves, in-card retry, double-click and no repeat on retry/reload');
   const size = ctx.garageWin.getContentSize();
   ctx.garageWin.setContentSize(380, size[1]);
   await badge(); await scroll('#growth'); await wait(100);
@@ -107,17 +136,43 @@ async function until(fn) {
   assert(await js('document.querySelector("[data-growth-claim=level-2]").disabled'));
   assert(ctx.gameState.owned.includes('stick_long'));
   await scroll('#growth'); await shot('06-legacy');
+  // A single result for multiple levels; dismissing keeps every reward available in the panel.
+  const multi = ctx.rules.reduce(ctx.rules.normalize({ schemaVersion: 2, xp: 19, coins: 120 }),
+    { type: 'startJob', site: 'mine', id: 'growth-multi-job', now: Date.now() - 7201000 });
+  await replace(multi); await scroll('#jobs');
+  await js('document.querySelector("[data-job=claim]").click()');
+  await until(() => js('document.querySelector("#dispatch-result").open'));
+  assert(await js('document.querySelector(".result-level").textContent === "Lv.1→Lv.4"'));
+  assert(await js('document.querySelectorAll("[data-result-claim]").length === 3'));
+  assert(await js('document.querySelector("#dispatch-result-body").textContent.includes("原有工地權限")'));
+  await shot('09-multi-level');
+  await js('document.querySelector("#dispatch-result-close").click()'); await wait(80);
+  assert(await js('document.querySelector("#open-growth").textContent.includes("3 份待領")'));
+  await js('window.api.dispatch({type:"poke"})'); await wait(100);
+  assert.equal(await js('document.querySelector("#dispatch-result").open'), false);
+  await new Promise((resolve) => { g.once('did-finish-load', resolve); g.reload(); });
+  await until(() => js('document.querySelector("#open-growth").textContent.includes("4 份待領")'));
+  assert.equal(ctx.gameState.xp, 320); // the background poke also levels up, without a modal
+  assert.equal(await js('document.querySelector("#dispatch-result").open'), false);
+  await js('document.querySelector("[data-growth-claim=level-3]").click()');
+  await until(() => ctx.gameState.growthClaimed.includes('level-3'));
+  const quiet = ctx.rules.reduce(ctx.rules.normalize(null), { type: 'startJob', site: 'yard', id: 'growth-no-level', now: Date.now() - 301000 });
+  await replace(quiet);
+  await js('document.querySelector("[data-job=claim]").click()');
+  await until(() => ctx.gameState.report?.jobId === 'growth-no-level');
+  assert.equal(await js('document.querySelector("#dispatch-result").open'), false);
+  assert(await js('document.querySelector(".job-report").open'));
+  const escapeSeed = { ...seed, job: { ...seed.job, id: 'growth-escape' } };
+  await replace(escapeSeed);
+  await js('document.querySelector("[data-job=claim]").click()');
+  await until(() => js('document.querySelector("#dispatch-result").open'));
+  g.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' }); g.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
+  await until(() => js('!document.querySelector("#dispatch-result").open'));
+  assert(await js('!document.querySelector("[data-growth-claim=level-3]").disabled'));
   assert.equal(errors.length, 0, errors.join('\n'));
   console.log('PASS Growth UI: narrow/dark layouts, completed route, old-save access and collections');
-  if (demo) {
-    await replace(seed);
-    // Reload clears test-only feedback so the acceptance demo starts clean.
-    await new Promise((resolve) => { g.once('did-finish-load', resolve); g.reload(); });
-    await until(() => js('!!document.querySelector("[data-growth-claim]")'));
-    await badge(); await scroll('#growth');
-    ctx.garageWin.setTitle('成長與解鎖驗收 — 獨立測試存檔'); ctx.garageWin.show(); ctx.garageWin.focus();
-    console.log('Demo ready: visit dispatch and claim the completed yard job to reach level 3, then claim the 30-coin growth reward.');
-  } else app.quit();
+  console.log('PASS Integrated result: multi-level grouping, later claim from panel, no-level inline report, Escape and no repeat after state push/reload');
+  app.quit();
 })().catch(async (err) => {
   console.error(err);
   if (ctx.garageWin) {

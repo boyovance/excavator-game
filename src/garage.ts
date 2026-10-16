@@ -5,6 +5,7 @@ import { bindJobs, renderJobs, tickJob } from './garage/jobs';
 import { bindParts, renderParts } from './garage/parts';
 import { bindPet, renderStatus } from './garage/pet';
 import { bindGrowth, renderGrowth } from './garage/growth';
+import { bindDispatchResult, renderDispatchResult } from './garage/dispatch-result';
 import { drawPreview } from './garage/preview';
 import { bindSettings, renderDisplays, renderSettings, showView, viewFromHash } from './garage/settings';
 import { ui } from './garage/store';
@@ -14,11 +15,13 @@ function render() {
   renderGrowth();
   renderJobs();
   renderParts();
+  renderDispatchResult();
 }
 
 bindParts(render);
 bindJobs(render);
 bindGrowth(render);
+bindDispatchResult();
 bindPet();
 skinEl.addEventListener('change', () => api.setSettings({ skin: skinEl.value }));
 

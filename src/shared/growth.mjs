@@ -22,3 +22,16 @@ export function claimGrowth(state, id) {
   if (!stage || state.xp < xpForLevel(stage.level) || state.growthClaimed.includes(id)) return state;
   return { ...state, coins: state.coins + stage.coins, growthClaimed: [...state.growthClaimed, id] };
 }
+
+/** Derive the transition from the committed report, never from a render/SSE event. */
+export function dispatchGrowth(before, after, jobId) {
+  const report = after.report;
+  if (before.job?.id !== jobId || report?.jobId !== jobId || !report.breakdown) return null;
+  const previousXp = Math.max(0, after.xp - report.breakdown.xp);
+  const from = levelInfo(previousXp).level;
+  const to = levelInfo(after.xp).level;
+  if (to <= from) return null;
+  const stages = GROWTH_STAGES.filter((g) => g.level > from && g.level <= to);
+  const sites = stages.flatMap((g) => g.sites).filter((id) => !siteUnlocked({ ...before, xp: previousXp }, id));
+  return { from, to, stages, sites, report };
+}

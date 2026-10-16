@@ -148,7 +148,24 @@
       .drop-chip b { color: var(--ink); font-size: 12px; margin-top: 3px; }
       .new-drop { border-color: var(--good); color: var(--good); }
       #job-confirm { width: min(420px, calc(100vw - 48px)); max-height: calc(100vh - 48px); overflow: auto; border: 1px solid var(--line); border-radius: 16px; padding: 24px; background: var(--card); color: var(--ink); box-shadow: 0 24px 70px #0004; }
-      #job-confirm::backdrop { background: #171b2480; }
+      #job-confirm::backdrop, #dispatch-result::backdrop { background: #171b2480; }
+      #dispatch-result { width: min(500px, calc(100vw - 24px)); max-height: calc(100vh - 32px); overflow: auto; border: 1px solid var(--line); border-radius: 16px; padding: 20px; color: var(--ink); background: var(--card); }
+      #dispatch-result h2 { margin: 6px 0; font-size: 22px; }
+      #dispatch-result-title:focus { outline: none; }
+      .result-level { display: flex; align-items: center; gap: 14px; font-size: 28px; font-weight: bold; color: var(--ink); margin: 10px 0; }
+      .result-level span { color: var(--muted); font-size: 20px; }
+      .result-section { padding: 12px 0; border-top: 1px solid var(--line); }
+      .result-section h3 { margin: 0 0 6px; font-size: 15px; }
+      .result-section p { margin: 6px 0; }
+      .result-section .hint { font-size: 12px; }
+      .result-totals { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 8px 0; }
+      .result-totals strong { font-size: 20px; }
+      .result-sites { list-style: none; padding: 0; margin: 8px 0; }
+      .result-sites li { margin: 6px 0; }
+      .result-sites span { display: block; }
+      .result-reward { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; padding: 10px 0; }
+      .result-reward span { display: block; }
+      #dispatch-result-close { width: 100%; }
       #job-confirm h2 { margin: 16px 0 4px; font-size: 24px; }
       .confirm-machine { margin-top: 0; color: var(--muted); }
       .confirm-actions { display: flex; gap: 10px; margin-top: 20px; }
@@ -398,6 +415,13 @@
       <div id="job-confirm-body"></div>
       <p id="job-confirm-error" class="job-message error" role="status"></p>
       <div class="confirm-actions"><button id="job-back">再想一下</button><button id="job-depart" class="primary">確認出發</button></div>
+    </dialog>
+    <dialog id="dispatch-result" aria-labelledby="dispatch-result-title">
+      <span class="mission-tag">派遣完成 · 升級了！</span>
+      <h2 id="dispatch-result-title" tabindex="-1" autofocus>這一趟的收穫與成長</h2>
+      <div id="dispatch-result-body"></div>
+      <p id="dispatch-result-message" class="job-message" role="status"></p>
+      <button id="dispatch-result-close">稍後領取</button>
     </dialog>
     <dialog id="part-detail" aria-labelledby="part-detail-title">
       <div class="part-heading"><h2 id="part-detail-title"></h2><button id="part-close" autofocus>關閉</button></div>

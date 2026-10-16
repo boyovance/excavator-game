@@ -5,6 +5,7 @@ import { canVisitSite, siteLevel, siteUnlocked } from '../shared/growth.mjs';
 import { partName, siteName, type ClientAction } from '../shared/reducer.mjs';
 import { jobsEl, reportEl } from './dom';
 import { ui } from './store';
+import { showDispatchResult } from './dispatch-result';
 
 const fmtMinutes = (m: number) => m >= 60 ? `${m / 60} 小時` : `${m} 分鐘`;
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -101,6 +102,8 @@ function showConfirmation(siteId: string) {
 
 async function run(action: Extract<ClientAction, { type: 'startJob' | 'claim' | 'cancelJob' }>) {
   if (busy) return;
+  const before = ui.state;
+  let claimedState: typeof before | undefined;
   busy = true; message = ''; failed = false;
   const confirmButton = document.getElementById('job-depart') as HTMLButtonElement;
   confirmButton.disabled = true;
@@ -110,6 +113,7 @@ async function run(action: Extract<ClientAction, { type: 'startJob' | 'claim' | 
     failed = !result.ok;
     message = result.ok ? action.type === 'startJob' ? '已出發！配置已固定。' : action.type === 'claim' ? '收穫已入庫，上方可查看明細。' : '已召回，本次沒有收穫。' : result.message;
     if (result.state) ui.state = result.state;
+    if (result.ok && action.type === 'claim') claimedState = result.state;
     if (result.ok) { dialog().close(); selected = null; }
     else document.getElementById('job-confirm-error')!.textContent = result.message;
   } catch {
@@ -117,6 +121,10 @@ async function run(action: Extract<ClientAction, { type: 'startJob' | 'claim' | 
     document.getElementById('job-confirm-error')!.textContent = message;
   } finally {
     busy = false; confirmButton.disabled = false; renderAll();
+    if (claimedState && action.type === 'claim') {
+      reportEl.scrollIntoView({ block: 'start' });
+      showDispatchResult(before, claimedState, action.jobId);
+    }
   }
 }
 

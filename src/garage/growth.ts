@@ -9,6 +9,7 @@ let busy = false;
 let message = '';
 let failed = false;
 let previousLevel: number | null = null;
+let renderAll: () => void;
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 export function renderGrowth() {
@@ -38,21 +39,29 @@ export function renderGrowth() {
     }).join('')}</div>`;
 }
 
+export async function requestGrowthReward(id: string) {
+  if (busy) return { ok: false, message: '獎勵儲存中，請稍候。' };
+  busy = true; failed = false; message = '正在儲存獎勵…'; renderAll();
+  try {
+    const result = await api.requestAction({ type: 'claimGrowth', id });
+    if (result.state) ui.state = result.state;
+    failed = !result.ok;
+    message = result.ok ? '階段獎勵已入帳並儲存，每個階段只領取一次。' : result.message;
+    return { ok: result.ok, message };
+  } catch {
+    failed = true; message = '暫時無法確認領取結果，請重試；不會重複給獎。';
+    return { ok: false, message };
+  } finally { busy = false; renderAll(); }
+}
+
 export function bindGrowth(render: () => void) {
+  renderAll = render;
   document.getElementById('open-growth')!.addEventListener('click', () => document.getElementById('growth')!.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   document.getElementById('jobs-to-growth')!.addEventListener('click', () => document.getElementById('growth')!.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   document.getElementById('growth-to-jobs')!.addEventListener('click', () => document.getElementById('jobs')!.parentElement!.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   panel().addEventListener('click', async (e) => {
     const button = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-growth-claim]');
     if (!button || button.disabled || busy) return;
-    busy = true; failed = false; message = '正在儲存獎勵…'; renderGrowth();
-    try {
-      const result = await api.requestAction({ type: 'claimGrowth', id: button.dataset.growthClaim! });
-      if (result.state) ui.state = result.state;
-      failed = !result.ok;
-      message = result.ok ? '階段獎勵已入帳並儲存，每個階段只領取一次。' : result.message;
-    } catch {
-      failed = true; message = '暫時無法確認領取結果，請重試；不會重複給獎。';
-    } finally { busy = false; render(); }
+    await requestGrowthReward(button.dataset.growthClaim!);
   });
 }

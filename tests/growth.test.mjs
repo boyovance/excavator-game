@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { normalize, reduce } from '../src/shared/reducer.mjs';
-import { GROWTH_STAGES, LEGACY_SITES, canVisitSite, siteUnlocked, xpForLevel } from '../src/shared/growth.mjs';
+import { GROWTH_STAGES, LEGACY_SITES, canVisitSite, siteUnlocked, xpForLevel, dispatchGrowth } from '../src/shared/growth.mjs';
 import { SITES, partById, siteById } from '../src/shared/parts.mjs';
 import { partSources } from '../src/shared/catalog.mjs';
 import { startServer } from '../server/index.mjs';
@@ -67,6 +67,36 @@ test('catalog source availability matches level restrictions and preserved legac
   assert.equal(source(base).available, false); assert.match(source(base).note, /Lv.6/);
   assert.equal(source({ ...base, xp: 500 }).available, true);
   assert.equal(source(normalize({ schemaVersion: 2, xp: 0 })).available, true);
+});
+
+const finished = (xp, site = 'yard', legacySites = []) => {
+  const before = reduce({ ...base, xp, legacySites }, { type: 'startJob', site, now: 1000, id: `result-${xp}` });
+  const after = reduce(before, { type: 'claim', jobId: before.job.id, now: before.job.end });
+  return { before, after, result: dispatchGrowth(before, after, before.job.id) };
+};
+test('integrated result only for a committed matching job which actually crosses a level', () => {
+  assert.equal(finished(0).result, null);
+  const { before, after, result } = finished(68);
+  assert.equal(result.from, 2); assert.equal(result.to, 3);
+  assert.deepEqual(result.stages.map((g) => g.id), ['level-3']);
+  assert.deepEqual(result.sites, ['quarry', 'scrap']);
+  assert.equal(result.report, after.report);
+  assert.equal(dispatchGrowth(before, before, before.job.id), null);
+  assert.equal(dispatchGrowth(before, after, 'stale-job'), null);
+  assert.equal(dispatchGrowth(after, after, before.job.id), null);
+});
+test('integrated multi-level result groups stages and does not call legacy access newly unlocked', () => {
+  const { result } = finished(19, 'mine', LEGACY_SITES);
+  assert.equal(result.from, 1); assert.equal(result.to, 4);
+  assert.deepEqual(result.stages.map((g) => g.id), ['level-2', 'level-3', 'level-4']);
+  assert.deepEqual(result.sites, []);
+});
+test('result uses committed report XP even if client before-state XP was stale', () => {
+  const { before, after } = finished(68);
+  assert.equal(dispatchGrowth({ ...before, xp: 0 }, after, before.job.id).from, 2);
+  const high = finished(979);
+  assert.equal(high.result.from, 7); assert.equal(high.result.to, 8);
+  assert.deepEqual(high.result.stages, []); assert.deepEqual(high.result.sites, []);
 });
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'exc-growth-'));
