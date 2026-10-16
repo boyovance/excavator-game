@@ -1,0 +1,21 @@
+{
+  "enabled": false,
+  "name": "我的 AI 角色",
+  "pixelArt": false,
+  "frames": {
+    "idle": "idle.png",
+    "walk0": "walk0.png",
+    "walk1": "walk1.png",
+    "dig0": "dig0.png",
+    "dig1": "dig1.png",
+    "dig2": "dig2.png",
+    "dig3": "dig3.png",
+    "dump0": "dump0.png",
+    "dump1": "dump1.png",
+    "cheer0": "cheer0.png",
+    "cheer1": "cheer1.png",
+    "sleep": "sleep.png",
+    "lift": "lift.png",
+    "broken": "broken.png"
+  }
+}

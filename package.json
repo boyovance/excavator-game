@@ -1,0 +1,71 @@
+{
+  "name": "excavator-game",
+  "version": "0.7.3",
+  "private": true,
+  "type": "module",
+  "description": "Desktop-pet excavator: a little machine that works, grows and keeps you company",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
+    "web": "vite",
+    "build": "tsc --noEmit && vite build",
+    "start": "vite build && electron .",
+    "server": "node server/run.mjs",
+    "icon": "node scripts/make-icon.cjs",
+    "test": "node tests/run.mjs",
+    "pack-content": "node scripts/pack-content.mjs",
+    "pack": "npm run build && electron-builder --win --dir",
+    "dist": "npm run build && electron-builder --win nsis"
+  },
+  "build": {
+    "appId": "com.excavator.pet",
+    "productName": "Excavator",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "server/**/*",
+      "src/shared/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "content-dist",
+        "to": "content-dist"
+      }
+    ],
+    "asarUnpack": [
+      "server/**/*",
+      "src/shared/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "language": "1028"
+    },
+    "copyright": "Copyright 漏 Excavator Pet"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5",
+    "cross-env": "^10.1.0",
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3",
+    "phaser": "^3.90.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.2",
+    "wait-on": "^9.5.1"
+  },
+  "author": "Excavator Pet"
+}

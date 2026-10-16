@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Excavator</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; }
+      #game { position: fixed; inset: 0; overflow: hidden; }
+      /* anchored to the bottom so a window that is mid-resize never shows the pet at the top */
+      #game canvas { position: absolute; left: 0; bottom: 0; display: block; }
+      body.web { background: linear-gradient(#cfe8ff, #f4f1e6); }
+      #hint { position: fixed; top: 8px; left: 8px; font: 12px sans-serif; color: #345; display: none; }
+      body.web #hint { display: block; }
+    </style>
+  </head>
+  <body>
+    <div id="hint">網頁測試模式:1/2/3 切換風格,D 立即挖掘,拖曳挖掘機</div>
+    <div id="game"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

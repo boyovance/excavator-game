@@ -1,0 +1,26 @@
+const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('api', {
+  getSettings: () => ipcRenderer.invoke('get-settings'),
+  setSettings: (patch) => ipcRenderer.send('set-settings', patch),
+  onSettings: (cb) => ipcRenderer.on('settings', (_e, s) => cb(s)),
+  getState: () => ipcRenderer.invoke('get-state'),
+  dispatch: (action) => ipcRenderer.send('dispatch', action),
+  onState: (cb) => ipcRenderer.on('state', (_e, s) => cb(s)),
+  exportSave: () => ipcRenderer.invoke('export-save'),
+  importSave: () => ipcRenderer.invoke('import-save'),
+  resetSave: () => ipcRenderer.invoke('reset-save'),
+  openFolder: (kind) => ipcRenderer.send('open-folder', kind),
+  getDisplays: () => ipcRenderer.invoke('get-displays'),
+  onDisplays: (cb) => ipcRenderer.on('displays', (_e, list) => cb(list)),
+  reportError: (message) => ipcRenderer.send('renderer-error', message),
+  getPacks: () => ipcRenderer.invoke('get-packs'),
+  onPacks: (cb) => ipcRenderer.on('packs', (_e, p) => cb(p)),
+  registerSkins: (list) => ipcRenderer.send('register-skins', list),
+  setInteractive: (v) => ipcRenderer.send('set-interactive', v),
+  showMenu: () => ipcRenderer.send('show-menu'),
+  openGarage: (tab) => ipcRenderer.send('open-garage', tab),
+  onGarageTab: (cb) => ipcRenderer.on('garage-tab', (_e, tab) => cb(tab)),
+  onDigNow: (cb) => ipcRenderer.on('dig-now', () => cb()),
+  onPlayAction: (cb) => ipcRenderer.on('play-action', (_e, name) => cb(name)),
+});
