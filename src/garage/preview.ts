@@ -2,16 +2,14 @@ import { POSES, type PoseName } from '../poses';
 import { drawPose } from '../render';
 import { getSkin } from '../skins';
 import { H, W, type Build } from '../skins/types';
-import { machineDefaults } from '../shared/parts.mjs';
+import { previewEquipment } from '../shared/catalog.mjs';
 import { $, canvas } from './dom';
 import { ui } from './store';
 
 const SHOW: PoseName[] = ['idle', 'walk0', 'idle', 'walk1', 'dig1', 'dig2', 'dig3', 'idle'];
 
 function previewBuild(): Build {
-  const b = { ...ui.state.equipped };
-  if (ui.tryOn?.slot === 'machine') Object.assign(b, machineDefaults(ui.tryOn.id), { machine: ui.tryOn.id });
-  else if (ui.tryOn) b[ui.tryOn.slot] = ui.tryOn.id;
+  const b = ui.tryOn ? previewEquipment(ui.state, ui.tryOn.id) ?? ui.state.equipped : ui.state.equipped;
   return { ...b, tint: { ...ui.state.tint, ...ui.liveTint } } as unknown as Build;
 }
 
@@ -37,4 +35,10 @@ export function drawPreview() {
   const skin = paint(canvas, previewBuild());
   $('parts-note').hidden = skin.supportsParts !== false;
   if (!$('view-welcome').hidden) paint($<HTMLCanvasElement>('welcome-preview'), welcomeBuild());
+  const before = document.getElementById('compare-current') as HTMLCanvasElement | null;
+  const after = document.getElementById('compare-candidate') as HTMLCanvasElement | null;
+  if (before) paint(before, { ...ui.state.equipped, tint: ui.state.tint } as unknown as Build);
+  if (after) paint(after, previewBuild());
+  const note = document.getElementById('compare-skin-note');
+  if (note) note.hidden = skin.supportsParts !== false;
 }

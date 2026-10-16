@@ -106,8 +106,7 @@ async function until(check) {
   assert.equal(ctx.gameState.coins, paid);
   await focusJobs(); await shot('06-result');
   // Reload both renderers; the result must survive and not be paid again.
-  g.reload(); p.reload();
-  await until(() => !g.isLoading() && !p.isLoading());
+  await Promise.all([g, p].map((contents) => new Promise((resolve) => { contents.once('did-finish-load', resolve); contents.reload(); })));
   await until(() => js('!!document.querySelector(".reward-grid")'));
   assert.equal(ctx.gameState.coins, paid);
   // Away mode returns when due without claiming; use debug placement only to avoid a long walk in tests.

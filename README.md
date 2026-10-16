@@ -4,6 +4,8 @@ Windows 桌面挖掘機養成遊戲。以派遣、零件收集、機型搭配及
 
 目前已有挖掘收益、派遣與掉落、車庫換裝、維修、改色、心情、陪伴里程碑、托盤選單、存檔匯入／匯出。後續計劃不等於已實現功能。
 
+零件圖鑑可查收藏狀態、適配機型與獲取來源，並排試裝比較外觀和整機效果。查看不花錢；按「購買並裝備」或「裝備此零件」才保存變更。M1 派遣已驗收，M2 圖鑑目前等待效果驗收。
+
 ## 計劃與設計
 
 - [項目計劃書](docs/PROJECT_PLAN.md)：階段範圍、驗收條件、回饋節點及進度。
@@ -29,6 +31,8 @@ npm run dev
 | `npm run smoke` | 建置後啟動 Electron 冒煙測試，使用獨立臨時存檔 |
 | `npm run test:dispatch` | 建置後測試完整派遣 UI、存檔失敗與重試，截圖至 artifacts/dispatch |
 | `npm run demo:dispatch` | 建置後打開隔離存檔演示，停在待領取狀態供驗收 |
+| `npm run test:catalog` | 建置後測試圖鑑篩選、試裝、購買、來源與記住的搭配，截圖至 artifacts/catalog |
+| `npm run demo:catalog` | 建置後打開獨立存檔的圖鑑演示，可比較長小臂及試用購買／換裝 |
 | `npm start` | 建置並啟動本地桌面應用 |
 | `npm run pack` | Windows 可執行目錄輸出至 `release/` |
 | `npm run dist` | Windows NSIS 安裝包輸出至 `release/` |

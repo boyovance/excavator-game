@@ -41,7 +41,7 @@ export interface ExcavatorApi {
   onSettings(cb: (s: Settings) => void): void;
   getState(): Promise<GameState>;
   dispatch(action: ClientAction): void;
-  requestAction(action: Extract<ClientAction, { type: 'startJob' | 'cancelJob' | 'claim' }>): Promise<ActionResult & { state?: GameState }>;
+  requestAction(action: Extract<ClientAction, { type: 'startJob' | 'cancelJob' | 'claim' | 'buy' | 'equip' }>): Promise<ActionResult & { state?: GameState }>;
   onState(cb: (s: GameState) => void): void;
   registerSkins(list: { id: string; name: string }[]): void;
   setInteractive(v: boolean): void;
@@ -94,9 +94,9 @@ function createMock(): ExcavatorApi {
     const current = reduce(readState(), { type: 'tick', now });
     const internal = (action.type === 'wear' || action.type === 'rest' ? { ...action, amount: 1 } : action) as Action;
     const next = reduce(current, stamp(internal, now));
-    if (next === current && ['startJob', 'claim', 'cancelJob'].includes(action.type)) {
+    if (next === current && ['startJob', 'claim', 'cancelJob', 'buy', 'equip'].includes(action.type)) {
       if (action.type === 'claim' && action.jobId && action.jobId === current.report?.jobId) return { ok: true, message: '已領取', state: current };
-      return { ok: false, message: '工作狀態已變更或尚未完成，請重新確認。' };
+      return { ok: false, message: '狀態已變更，或不符合操作條件，請重新確認。' };
     }
     try { localStorage.setItem(STATE_KEY, JSON.stringify(next)); }
     catch { return { ok: false, message: '瀏覽器存檔失敗，請釋放空間後重試。' }; }

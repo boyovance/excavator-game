@@ -52,6 +52,7 @@ export interface Site {
   loot: [string, number][];
   /** machine types allowed to work here; missing means every machine */
   machines?: string[];
+  machineDrop?: { chance: number; pool: [string, number][] };
 }
 
 export interface TintSlot {

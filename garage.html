@@ -153,7 +153,52 @@
       .confirm-machine { margin-top: 0; color: var(--muted); }
       .confirm-actions { display: flex; gap: 10px; margin-top: 20px; }
       .confirm-actions button { flex: 1; padding: 10px; }
-      @media (max-width: 450px) { .site-grid { grid-template-columns: 1fr; } }
+      .catalog-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+      .catalog-heading h2 { margin: 0; }
+      #catalog-count { font-size: 12px; white-space: nowrap; color: var(--muted); }
+      .catalog-progress { margin: 12px 0; height: 6px; }
+      .catalog-controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+      #catalog-search { flex: 1; min-width: 120px; width: 100%; font: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 8px; background: var(--card); color: var(--ink); }
+      .catalog-controls .opt { flex-basis: 100%; font-size: 12px; margin: 0; }
+      .catalog-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+      .catalog-tag { font-size: 10px; border-radius: 5px; padding: 2px 6px; background: var(--bg); color: var(--muted); }
+      .catalog-tag.owned { background: #dbefdf; color: #235d30; }
+      .catalog-tag.incompatible { background: #fff0d0; color: #795000; }
+      .catalog-card { gap: 8px; min-width: 0; }
+      .catalog-description { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+      .catalog-card button { margin-top: auto; }
+      .catalog-empty { grid-column: 1 / -1; text-align: center; padding: 24px 8px; color: var(--muted); }
+      #part-detail { width: min(520px, calc(100vw - 24px)); max-height: calc(100vh - 32px); overflow: auto; border: 1px solid var(--line); border-radius: 14px; padding: 20px; color: var(--ink); background: var(--card); }
+      #part-detail::backdrop { background: #171b2480; }
+      #part-detail h2 { font-size: 21px; }
+      .part-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+      .part-heading h2 { margin: 0; }
+      .part-heading button { flex-shrink: 0; }
+      #part-detail h3 { font-size: 14px; margin-bottom: 10px; }
+      #part-detail p { overflow-wrap: anywhere; }
+      .compare-previews { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+      .compare-previews figure { margin: 0; min-width: 0; }
+      .compare-previews figcaption { font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+      .compare-previews small { display: block; color: var(--muted); margin-top: 4px; }
+      .compare-stage { background: linear-gradient(#cfe8ff, #f4f1e6 70%, #c9b48a 70%); border-radius: 8px; overflow: hidden; padding-top: 10px; }
+      .compare-stage canvas { display: block; width: 100%; height: auto; }
+      .compare-table { border-collapse: collapse; width: 100%; margin-top: 18px; font-size: 12px; }
+      .compare-table caption { text-align: left; font-weight: 600; margin-bottom: 8px; }
+      .compare-table th, .compare-table td { text-align: left; padding: 7px 4px; border-bottom: 1px solid var(--line); }
+      .compare-table thead { color: var(--muted); }
+      .stat-up { color: var(--good); } .stat-down { color: var(--bad); }
+      .catalog-warning { background: var(--bg); border-left: 3px solid var(--warn); padding: 10px; font-size: 12px; }
+      .part-sources { list-style: none; padding: 0; margin: 0; }
+      .part-sources li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+      .part-sources small { display: block; color: var(--muted); font-size: 11px; }
+      .part-sources b { font-size: 12px; }
+      .part-sources button { flex-shrink: 0; font-size: 11px; padding: 5px 8px; }
+      .part-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+      .part-actions button { flex: 1; padding: 9px; }
+      #part-message { font-size: 12px; color: var(--good); }
+      #part-message.error { color: var(--bad); }
+      .garage-shortcuts { margin-bottom: 12px; }
+      @media (max-width: 450px) { .site-grid { grid-template-columns: 1fr; } .grid { grid-template-columns: 1fr; } #part-detail { padding: 14px; } }
 </style>
   </head>
   <body>
@@ -167,6 +212,7 @@
       </header>
 
       <div id="view-garage">
+      <div class="garage-shortcuts"><button id="open-catalog">零件圖鑑與搭配 ↓</button></div>
       <section class="panel">
         <div class="stage"><canvas id="preview"></canvas></div>
         <div class="row">
@@ -205,12 +251,20 @@
         <p class="hint">派遣配置在出發時固定。關閉程式也照常計時；同一時間只能派遣一次，不會離線自動接下一趟。</p>
       </section>
 
-      <section class="panel">
-        <h2>零件倉庫</h2>
+      <section class="panel" id="catalog">
+        <div class="catalog-heading"><h2>零件圖鑑與搭配</h2><span id="catalog-count"></span></div>
+        <div class="bar catalog-progress"><i id="catalog-progress"></i></div>
+        <p class="hint" id="catalog-machine"></p>
         <div class="tabs" id="tabs"></div>
+        <div class="catalog-controls" id="catalog-controls">
+          <input id="catalog-search" type="search" placeholder="搜尋本類零件名稱或描述" aria-label="搜尋本類零件" />
+          <select id="catalog-filter" aria-label="收藏狀態篩選"><option value="all">全部</option><option value="owned">已擁有</option><option value="missing">未擁有</option><option value="shop">商店可購買</option><option value="work">派遣／機型取得</option></select>
+          <label class="opt"><input type="checkbox" id="catalog-compatible" /> 只看目前機型適用</label>
+        </div>
+        <p class="hint" id="catalog-results" role="status"></p>
         <div class="grid" id="grid"></div>
         <p class="hint" id="parts-note" hidden>目前的風格是整張圖片,零件、駕駛員和自訂顏色都不會改變外觀,換回其他風格才看得到。</p>
-        <p class="hint">把滑鼠移到零件上可以試裝預覽。挖土賺金幣,工作會磨損耐久,耐久歸零就會停機。</p>
+        <p class="hint">點「查看與試裝」比較外觀和整機效果。查看不花錢；購買或裝備需在詳情中確認。</p>
       </section>
       </div>
 
@@ -319,6 +373,13 @@
       <div id="job-confirm-body"></div>
       <p id="job-confirm-error" class="job-message error" role="status"></p>
       <div class="confirm-actions"><button id="job-back">再想一下</button><button id="job-depart" class="primary">確認出發</button></div>
+    </dialog>
+    <dialog id="part-detail" aria-labelledby="part-detail-title">
+      <div class="part-heading"><h2 id="part-detail-title"></h2><button id="part-close" autofocus>關閉</button></div>
+      <div id="part-detail-body"></div>
+      <p id="part-message" role="status"></p>
+      <div class="part-actions"><button id="part-apply" class="primary"></button></div>
+      <div id="part-detail-sources"></div>
     </dialog>
     <script type="module" src="/src/garage.ts"></script>
   </body>

@@ -144,7 +144,7 @@ export async function startServer({ dataDir, token, port = 0, host = '127.0.0.1'
     // Resting only makes sense while the machine is broken down.
     if (raw.type === 'rest' && state.durability >= 15) return 200;
     const action = stamp(sanitize(raw), t);
-    if (['startJob', 'claim', 'cancelJob'].includes(raw.type)) {
+    if (['startJob', 'claim', 'cancelJob', 'buy', 'equip'].includes(raw.type)) {
       const next = reduce(state, action);
       if (next === state) {
         if (raw.type === 'claim' && raw.jobId && raw.jobId === state.report?.jobId) return 200;

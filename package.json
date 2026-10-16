@@ -18,6 +18,8 @@
     "smoke": "node scripts/smoke-electron.mjs",
     "test:dispatch": "node scripts/verify-dispatch.mjs",
     "demo:dispatch": "npm run build && node scripts/verify-dispatch.mjs --demo",
+    "test:catalog": "node scripts/verify-catalog.mjs",
+    "demo:catalog": "npm run build && node scripts/verify-catalog.mjs --demo",
     "pack": "npm run build && node scripts/prepare-resources.mjs && electron-builder --win --dir",
     "dist": "npm run build && node scripts/prepare-resources.mjs && electron-builder --win nsis"
   },

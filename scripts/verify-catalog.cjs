@@ -1,0 +1,173 @@
+const { app, nativeTheme } = require('electron');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const { bannerScript } = require('./demo-banner.cjs');
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const demo = process.env.EXCAVATOR_CATALOG_DEMO === '1';
+const output = process.env.EXCAVATOR_CATALOG_OUTPUT;
+assert(path.basename(process.env.EXCAVATOR_USER_DATA ?? '').startsWith('exc-catalog-ui-'), 'Test profile required');
+const errors = [];
+nativeTheme.themeSource = 'light';
+app.on('browser-window-created', (_e, win) => {
+  if (!demo) win.hide();
+  win.webContents.setBackgroundThrottling(false);
+  win.webContents.on('console-message', (d) => { if (d.level === 'error') errors.push(d.message); });
+});
+require('../electron/main.cjs');
+const ctx = require('../electron/context.cjs');
+const { call } = require('../electron/server.cjs');
+const { openGarage } = require('../electron/windows.cjs');
+async function until(fn) {
+  for (let i = 0; i < 300; i++) { if (await fn()) return; await wait(50); }
+  throw Error('Timed out waiting for catalog UI');
+}
+(async () => {
+  await app.whenReady();
+  await until(() => ctx.win && ctx.gameState && !ctx.win.webContents.isLoading());
+  openGarage('garage');
+  await until(() => ctx.garageWin && !ctx.garageWin.webContents.isLoading());
+  const g = ctx.garageWin.webContents;
+  const js = (code) => g.executeJavaScript(code);
+  await until(() => js('!!document.querySelector("[data-open-part]")'));
+  const replace = async (state) => {
+    assert.equal((await call('/admin/replace', { method: 'POST', body: JSON.stringify({ state }) })).status, 200);
+    await until(() => ctx.gameState.coins === state.coins);
+  };
+  const seed = ctx.rules.reduce(ctx.rules.normalize({ coins: 500, name: '圖鑑測試', owned: ['m_mini', 'boom_mini_ext'], loadouts: { m_mini: { boom: 'boom_mini_ext' } } }), { type: 'startJob', site: 'yard', id: 'catalog-demo-job', now: Date.now() });
+  await replace(seed);
+  await until(() => js('document.querySelector("#pet-name").value === "圖鑑測試"'));
+  const badge = () => js(bannerScript('零件圖鑑驗收演示 · 獨立存檔 · 購買與換裝不影響正式進度'));
+  await badge();
+  const shot = async (id) => {
+    // Theme/size changes can briefly invalidate Chromium's compositor surface.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await wait(300);
+      try {
+        const capture = await g.capturePage(undefined, { stayHidden: !demo, stayAwake: true });
+        assert(!capture.isEmpty(), 'Empty screenshot');
+        fs.writeFileSync(path.join(output, id + '.png'), capture.toPNG());
+        return;
+      } catch (err) { if (attempt === 2) throw new Error(`Screenshot ${id} failed`, { cause: err }); }
+    }
+  };
+  const category = async (slot) => { await js(`document.querySelector('[data-slot="${slot}"]').click()`); };
+  const open = async (id) => { await js(`document.querySelector('[data-open-part="${id}"]').click()`); assert(await js('document.querySelector("#part-detail").open')); };
+  const close = async () => { await js('document.querySelector("#part-close").click()'); await wait(60); };
+  const filter = (value) => js(`document.querySelector('#catalog-filter').value='${value}'; document.querySelector('#catalog-filter').dispatchEvent(new Event('change'));`);
+  const search = (text) => js(`document.querySelector('#catalog-search').value=${JSON.stringify(text)}; document.querySelector('#catalog-search').dispatchEvent(new Event('input'));`);
+  await js('document.querySelector("#open-catalog").click()');
+  await shot('01-catalog');
+  await category('stick');
+  await search('不存在的零件');
+  assert(await js('!!document.querySelector("#catalog-reset")'));
+  await js('document.querySelector("#catalog-reset").click()');
+  await filter('missing');
+  assert(await js('!!document.querySelector("[data-open-part=stick_long]")'));
+  await filter('owned');
+  assert.equal(await js('!!document.querySelector("[data-open-part=stick_long]")'), false);
+  await filter('all');
+  await search('長小臂');
+  const pre = JSON.stringify(ctx.gameState.equipped);
+  const initialCollection = await js('document.querySelector("#catalog-count").textContent');
+  await open('stick_long');
+  assert(await js('document.querySelector(".compare-table").textContent.includes("×1.15")'));
+  assert(await js('document.querySelector("#part-detail-body").textContent.includes("不改已出發")'));
+  assert.equal(ctx.gameState.coins, 500);
+  assert.equal(JSON.stringify(ctx.gameState.equipped), pre);
+  assert(await js('document.querySelector("#compare-current").toDataURL() !== document.querySelector("#compare-candidate").toDataURL()'));
+  await shot('02-compare');
+  const originalSize = ctx.garageWin.getContentSize();
+  ctx.garageWin.setContentSize(380, originalSize[1]);
+  await wait(150);
+  assert(await js('document.querySelector("#part-detail").scrollWidth <= document.querySelector("#part-detail").clientWidth'));
+  assert(await js('document.documentElement.scrollWidth <= innerWidth'));
+  await shot('03-narrow');
+  ctx.garageWin.setContentSize(...originalSize);
+  g.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+  g.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
+  await until(() => js('!document.querySelector("#part-detail").open'));
+  assert.equal(ctx.gameState.coins, 500);
+  await open('stick_long');
+  const blocked = path.join(app.getPath('userData'), 'state.json.tmp');
+  fs.mkdirSync(blocked);
+  await js('document.querySelector("#part-apply").click()');
+  await until(() => js('document.querySelector("#part-message").textContent.includes("存檔失敗")'));
+  assert.equal(ctx.gameState.coins, 500); assert.equal(JSON.stringify(ctx.gameState.equipped), pre);
+  fs.rmdirSync(blocked);
+  await js('document.querySelector("#part-apply").click(); document.querySelector("#part-apply").click()');
+  await until(() => ctx.gameState.equipped.stick === 'stick_long' && js('document.querySelector("#part-message").textContent.includes("已裝備並儲存")'));
+  assert.equal(ctx.gameState.coins, 430);
+  assert.notEqual(await js('document.querySelector("#catalog-count").textContent'), initialCollection);
+  assert.deepEqual(ctx.gameState.job, seed.job);
+  assert(await js('document.querySelector("#compare-current").toDataURL() === document.querySelector("#compare-candidate").toDataURL()'));
+  console.log('PASS Catalog UI: search/filters, independent preview, actual delta, Escape, narrow layout, failed save and one-time purchase');
+  await close(); await search(''); await category('bucket');
+  await open('bucket_micro_trench');
+  assert(await js('document.querySelector("#part-apply").disabled'));
+  assert.equal(await js('!!document.querySelector("#compare-candidate")'), false);
+  assert(await js('document.querySelector("#part-detail-body").textContent.includes("不能使用此零件")'));
+  await shot('04-incompatible'); await close();
+  await js('document.querySelector("#catalog-compatible").click()');
+  assert.equal(await js('!!document.querySelector("[data-open-part=bucket_micro_trench]")'), false);
+  await js('document.querySelector("#catalog-compatible").click()');
+  await category('accessory'); await open('acc_gps');
+  assert(await js('document.querySelector("#part-apply").disabled'));
+  assert(await js('document.querySelector("[data-source-site=mine]") && !document.querySelector("[data-source-site=mine]").disabled'));
+  await shot('05-sources');
+  await js('document.querySelector("[data-source-site=mine]").click()');
+  await until(() => js('!document.querySelector("#part-detail").open'));
+  assert.deepEqual(ctx.gameState.job, seed.job);
+  await category('machine'); await open('m_mini');
+  assert(await js('document.querySelector(".compare-table").textContent.includes("×1.10")'));
+  await js('document.querySelector("#part-apply").click()');
+  await until(() => ctx.gameState.equipped.machine === 'm_mini');
+  assert.equal(ctx.gameState.equipped.boom, 'boom_mini_ext');
+  await close(); await open('m_std');
+  assert(await js('document.querySelector(".compare-table").textContent.includes("×1.15")'));
+  await js('document.querySelector("#part-apply").click()');
+  await until(() => ctx.gameState.equipped.machine === 'm_std');
+  assert.equal(ctx.gameState.equipped.stick, 'stick_long');
+  await close(); await category('paint'); await open('paint_blue');
+  assert(await js('document.querySelector("#part-detail-body").textContent.includes("上述數值不變")'));
+  await close();
+  // Balance changes while the dialog is open must re-evaluate purchase availability.
+  await replace({ ...ctx.gameState, coins: 0 }); await open('paint_blue');
+  await until(() => js('document.querySelector("#part-apply").textContent.includes("還差")'));
+  assert(await js('document.querySelector("#part-apply").disabled'));
+  await close();
+  await replace({ ...ctx.gameState, coins: 430 });
+  await new Promise((resolve) => { g.once('did-finish-load', resolve); g.reload(); });
+  await until(() => js('!!document.querySelector("[data-open-part]")'));
+  assert.equal(ctx.gameState.equipped.stick, 'stick_long');
+  await category('stick'); await open('stick_long');
+  assert(await js('document.querySelector("#part-apply").textContent === "已裝備"'));
+  await close();
+  const rewardState = { ...ctx.gameState, job: { ...seed.job, start: Date.now() - 301000, end: Date.now() - 1000, rolls: [0.5, 0.5, 0.99, 0, 0, 0.99, 0, 0.99, 0, 0.99, 0] } };
+  await replace(rewardState);
+  await js(`window.api.requestAction({type:'claim',jobId:'catalog-demo-job'})`);
+  await until(() => ctx.gameState.owned.includes('acc_beacon'));
+  await category('accessory'); await filter('owned');
+  assert(await js('!!document.querySelector("[data-open-part=acc_beacon]")'));
+  await filter('all'); await category('stick');
+  console.log('PASS Catalog UI: freshly claimed dispatch loot appears in owned collection');
+  nativeTheme.themeSource = 'dark'; await badge();
+  await js('document.querySelector("#open-catalog").click()');
+  await shot('06-dark');
+  nativeTheme.themeSource = 'light';
+  assert.equal(errors.length, 0, errors.join('\n'));
+  console.log('PASS Catalog UI: incompatible parts, source navigation, remembered machine loadouts, cosmetics, affordability and renderer reload');
+  if (demo) {
+    // Reset only this test-owned demo so the player can try an unpurchased part themselves.
+    await replace(seed); await badge(); await category('stick'); await search('長小臂'); await open('stick_long');
+    ctx.garageWin.setTitle('零件圖鑑與搭配驗收 — 獨立測試存檔'); ctx.garageWin.show(); ctx.garageWin.focus();
+    console.log('Demo ready: compare the long stick, then buy/equip or close and explore the catalog.');
+  } else app.quit();
+})().catch(async (err) => {
+  console.error(err);
+  if (ctx.garageWin) {
+    fs.writeFileSync(path.join(output, 'failure.png'), (await ctx.garageWin.webContents.capturePage()).toPNG());
+    console.error(await ctx.garageWin.webContents.executeJavaScript('document.querySelector("#part-message")?.textContent'));
+  }
+  app.exit(1);
+});

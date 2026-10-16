@@ -23,4 +23,6 @@ jobs:
       - if: runner.os == 'Windows'
         run: npm run test:dispatch
       - if: runner.os == 'Windows'
+        run: npm run test:catalog
+      - if: runner.os == 'Windows'
         run: npm run pack
