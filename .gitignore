@@ -5,3 +5,4 @@ content-dist/
 keys/
 *.log
 release/
+/artifacts/

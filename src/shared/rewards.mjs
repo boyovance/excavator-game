@@ -1,10 +1,10 @@
 import { grantsOf } from './machine.mjs';
 import { fitsMachine, partById, siteById } from './parts.mjs';
-import { clamp, num, withMood } from './util.mjs';
+import { num, withMood } from './util.mjs';
+import { ROLLS_NEEDED, jobMultiplier } from './jobs.mjs';
 
 const BASE_COINS = 4;
 // coin spread (2) + jackpot (1) + a chance/item pair for each of up to 3 drops (6) + a machine drop chance and pick (2)
-const ROLLS_NEEDED = 11;
 
 /** Multiply one stat across everything equipped; parts without it count as x1. */
 function statProduct(equipped, stat) {
@@ -20,9 +20,10 @@ export function digCoins(equipped) {
 
 /** Fill in time and randomness. Run by the trusted side (the server) before reduce(). */
 export function stamp(action, now = Date.now()) {
-  if (action.type === 'startJob' || action.type === 'claim') {
-    return { ...action, now, rolls: Array.from({ length: ROLLS_NEEDED }, () => Math.random()) };
+  if (action.type === 'startJob') {
+    return { ...action, now, id: globalThis.crypto.randomUUID(), rolls: Array.from({ length: ROLLS_NEEDED }, () => Math.random()) };
   }
+  if (action.type === 'claim' || action.type === 'cancelJob') return { type: action.type, jobId: action.jobId, now };
   if (action.type === 'ackMilestone') return { type: 'ackMilestone', now };
   return action;
 }
@@ -43,26 +44,32 @@ function rollDrop(site, roll, machineId) {
 /** Collect a finished job: coins, drops, xp and wear, all rolled from the dice the server supplied. */
 export function claimJob(state, action) {
   const job = state.job;
-  if (!job || num(action.now) < job.end) return state;
+  if (!job || num(action.now) < job.end || (action.jobId && action.jobId !== job.id)) return state;
   const site = siteById(job.site);
   // Dice, all supplied by the server: 0-1 coin spread, 2 jackpot, then a (chance, item) pair per possible drop.
-  const rolls = Array.from({ length: ROLLS_NEEDED }, (_, i) => clamp(num(action.rolls?.[i], 0.999999), 0, 0.999999));
+  const rolls = job.rolls;
   const [lo, hi] = site.coins;
   // two dice averaged: most hauls land in the middle, very small and very big ones are rare
   let coins = lo + Math.floor(((rolls[0] + rolls[1]) / 2) * (hi - lo + 1));
+  const base = coins;
   const jackpot = rolls[2] < site.jackpot;
   if (jackpot) coins *= 2;
-  coins = Math.round(coins * statProduct(state.equipped, 'jobCoin'));
+  const jackpotBonus = coins - base;
+  const beforeEquipment = coins;
+  coins = Math.round(coins * jobMultiplier(job.equippedSnapshot));
+  const equipmentBonus = coins - beforeEquipment;
+  let duplicates = 0;
 
   let owned = state.owned;
   const drops = [];
   site.drops.forEach((chance, i) => {
     if (rolls[3 + 2 * i] >= chance) return;
-    const id = rollDrop(site, rolls[4 + 2 * i], state.equipped.machine);
+    const id = rollDrop(site, rolls[4 + 2 * i], job.machineId);
     const dup = owned.includes(id);
-    if (dup) coins += Math.max(10, Math.floor((partById(id).price ?? 60) * 0.5));
+    const refund = dup ? Math.max(10, Math.floor((partById(id).price ?? 60) * 0.5)) : 0;
+    if (dup) { coins += refund; duplicates += refund; }
     else owned = [...owned, id];
-    drops.push({ id, dup });
+    drops.push({ id, dup, coins: refund });
   });
   // a whole machine may come back too, one the player does not own yet
   const found = site.machineDrop;
@@ -84,7 +91,8 @@ export function claimJob(state, action) {
       xp: state.xp + site.xp,
       durability: Math.max(1, state.durability - site.wear),
       job: null,
-      report: { site: site.id, coins, drops, jackpot, at: num(action.now), seen: false },
+      report: { jobId: job.id, machineId: job.machineId, site: site.id, coins, drops, jackpot, at: num(action.now), seen: false,
+        breakdown: { base, jackpotBonus, equipmentBonus, duplicates, xp: site.xp, wear: Math.max(0, state.durability - Math.max(1, state.durability - site.wear)) } },
     },
     8,
   );

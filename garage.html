@@ -105,6 +105,55 @@
       .working .bar > i { background: var(--accent); }
       .report { background: color-mix(in srgb, var(--accent) 18%, var(--card)); border-radius: 10px; padding: 8px 12px; margin-bottom: 10px; }
       .fits { color: #6b5a3a; }
+      .dispatch-panel h2 { margin-bottom: 4px; }
+      .dispatch-intro, .mission-heading, .mission-timing, .site-heading { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+      .dispatch-intro { margin: 16px 0 12px; font-size: 12px; color: var(--muted); }
+      .dispatch-intro b { color: var(--ink); }
+      .site-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+      .site-card { border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+      .site-card h3, .mission-card h3 { margin: 0; font-size: 16px; }
+      .site-card p { margin: 0; }
+      .duration-chip { border-radius: 6px; padding: 3px 6px; background: var(--bg); font-size: 11px; white-space: nowrap; }
+      .site-reward { font-size: 22px; font-weight: 700; }
+      .site-reward small { font-size: 11px; font-weight: 400; color: var(--muted); }
+      .site-stats, .site-loot, .loadout, .fits { font-size: 12px; color: var(--muted); }
+      .site-card button { margin-top: auto; width: 100%; }
+      .site-locked { background: var(--bg); }
+      .mission-card { margin-top: 16px; padding: 18px; border: 1px solid var(--accent); border-radius: 12px; }
+      .mission-tag { color: var(--accent-ink); background: #ffecad; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; }
+      .mission-card h3 { font-size: 23px; margin-top: 14px; }
+      .mission-machine { margin: 4px 0 16px; color: var(--muted); }
+      .mission-bar { height: 9px; margin-bottom: 10px; }
+      .mission-bar > i { background: var(--accent); }
+      .mission-timing { font-size: 12px; margin-bottom: 16px; }
+      .mission-timing span { color: var(--muted); }
+      .mission-ready { border-color: var(--good); }
+      .mission-ready .mission-tag { background: #d9efdd; color: #235d30; }
+      .mission-ready .mission-bar > i { background: var(--good); }
+      .claim-button { width: 100%; margin-top: 8px; padding: 10px; }
+      .recall-button { margin-top: 8px; font-size: 12px; }
+      .job-message { color: var(--good); font-size: 12px; }
+      .job-message:empty { display: none; }
+      .job-message.error { color: var(--bad); }
+      .job-report { padding: 16px; background: color-mix(in srgb, var(--good) 7%, var(--card)); border: 1px solid color-mix(in srgb, var(--good) 40%, var(--line)); border-radius: 12px; margin-top: 14px; }
+      summary { cursor: pointer; }
+      .job-report > summary { font-weight: 600; }
+      .job-report > summary strong { float: right; color: var(--good); }
+      .reward-grid, .confirm-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 16px 0; }
+      .reward-grid > div, .confirm-grid > div { padding: 10px; border-radius: 8px; background: var(--bg); }
+      dt { color: var(--muted); font-size: 11px; } dd { margin: 4px 0 0; font-size: 18px; font-weight: 700; }
+      .reward-extra { font-size: 12px; }
+      .drop-list { display: flex; flex-wrap: wrap; gap: 8px; }
+      .drop-chip { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 10px; color: var(--muted); }
+      .drop-chip b { color: var(--ink); font-size: 12px; margin-top: 3px; }
+      .new-drop { border-color: var(--good); color: var(--good); }
+      #job-confirm { width: min(420px, calc(100vw - 48px)); max-height: calc(100vh - 48px); overflow: auto; border: 1px solid var(--line); border-radius: 16px; padding: 24px; background: var(--card); color: var(--ink); box-shadow: 0 24px 70px #0004; }
+      #job-confirm::backdrop { background: #171b2480; }
+      #job-confirm h2 { margin: 16px 0 4px; font-size: 24px; }
+      .confirm-machine { margin-top: 0; color: var(--muted); }
+      .confirm-actions { display: flex; gap: 10px; margin-top: 20px; }
+      .confirm-actions button { flex: 1; padding: 10px; }
+      @media (max-width: 450px) { .site-grid { grid-template-columns: 1fr; } }
 </style>
   </head>
   <body>
@@ -150,9 +199,10 @@
 
       <section class="panel">
         <h2>派遣工作</h2>
+        <p class="hint">選擇工地，帶著你的配置出發。完成後親自領取收穫。</p>
         <div id="report"></div>
         <div id="jobs"></div>
-        <p class="hint">派出去後挖掘機會留在桌面上工作,頭上顯示進度,到時間收工(也可以在設定裡改成離開桌面)。關掉程式也照常計時。收工時帶回金幣,有機會帶回新零件。</p>
+        <p class="hint">派遣配置在出發時固定。關閉程式也照常計時；同一時間只能派遣一次，不會離線自動接下一趟。</p>
       </section>
 
       <section class="panel">
@@ -222,7 +272,7 @@
               <option value="high">多一點</option>
             </select>
           </div>
-          <label class="opt"><input type="checkbox" id="set-notify" /> 派遣歸來時發送通知</label>
+          <label class="opt"><input type="checkbox" id="set-notify" /> 工作完成時提醒領取收穫</label>
           <label class="opt"><input type="checkbox" id="set-quiet" /> 勿擾時段</label>
           <div class="row">
             <input type="time" id="set-quiet-from" />
@@ -265,6 +315,11 @@
         </section>
       </div>
     </main>
+    <dialog id="job-confirm" aria-label="派遣出發確認">
+      <div id="job-confirm-body"></div>
+      <p id="job-confirm-error" class="job-message error" role="status"></p>
+      <div class="confirm-actions"><button id="job-back">再想一下</button><button id="job-depart" class="primary">確認出發</button></div>
+    </dialog>
     <script type="module" src="/src/garage.ts"></script>
   </body>
 </html>

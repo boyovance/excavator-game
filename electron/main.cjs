@@ -58,6 +58,7 @@ if (!app.requestSingleInstanceLock()) {
     packs.loadCachedPacks();
     createWindow({ onResume: packs.syncPacks });
     createTray();
+    notifyReturn(null, ctx.gameState);
     if (ctx.settings.onboarding === 'welcome') openGarage('welcome');
     server.listenForState(onServerState);
     packs.startPackSync();

@@ -16,6 +16,8 @@
     "test": "node tests/run.mjs",
     "pack-content": "node scripts/pack-content.mjs",
     "smoke": "node scripts/smoke-electron.mjs",
+    "test:dispatch": "node scripts/verify-dispatch.mjs",
+    "demo:dispatch": "npm run build && node scripts/verify-dispatch.mjs --demo",
     "pack": "npm run build && node scripts/prepare-resources.mjs && electron-builder --win --dir",
     "dist": "npm run build && node scripts/prepare-resources.mjs && electron-builder --win nsis"
   },

@@ -1,4 +1,4 @@
-const { app, Menu, Tray, nativeImage } = require('electron');
+const { app, Menu, Tray, nativeImage, dialog } = require('electron');
 const path = require('path');
 const ctx = require('./context.cjs');
 const { dispatch } = require('./server.cjs');
@@ -12,10 +12,18 @@ function buildMenu() {
   const jobItems = job
     ? [
         {
-          label: `工作中:${rules.siteName(job.site)},剩餘 ${Math.max(0, Math.ceil((job.end - Date.now()) / 60000))} 分鐘`,
+          label: Date.now() >= job.end ? `工作完成：${rules.siteName(job.site)}，待領取` : `工作中:${rules.siteName(job.site)},剩餘 ${Math.max(0, Math.ceil((job.end - Date.now()) / 60000))} 分鐘`,
           enabled: false,
         },
-        { label: '召回(放棄這次收穫)', click: () => dispatch({ type: 'cancelJob' }) },
+        Date.now() >= job.end
+          ? { label: '到車庫領取收穫', click: () => openGarage('garage') }
+          : { label: '召回(放棄這次收穫)', click: async () => {
+              const { response } = await dialog.showMessageBox({ type: 'question', message: '召回會放棄本次收穫，確定召回？', buttons: ['繼續工作', '確認召回'], defaultId: 0, cancelId: 0 });
+              if (response === 1) {
+                const result = await dispatch({ type: 'cancelJob', jobId: job.id });
+                if (!result.ok) await dialog.showMessageBox({ type: 'warning', message: result.message });
+              }
+            } },
       ]
     : [];
   return Menu.buildFromTemplate([

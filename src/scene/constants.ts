@@ -14,7 +14,8 @@ export type State =
   | 'sleep'
   | 'cheer'
   | 'play'
-  | 'working';
+  | 'working'
+  | 'waiting';
 
 export interface Particle {
   r: Phaser.GameObjects.Rectangle;

@@ -22,6 +22,7 @@ import { Effects } from './scene/effects';
 import { Life, type LifeHost } from './scene/life';
 import { Loot } from './scene/loot';
 import { Progress } from './scene/progress';
+import { JobController } from './scene/jobs';
 import { Scenery } from './scene/scenery';
 import { Speech } from './scene/speech';
 import { busyLine, tipText } from './scene/tips';
@@ -53,7 +54,7 @@ export class ExcavatorScene extends Phaser.Scene {
   private settings: Settings;
   /** pixels per logical unit: the chosen size, times how big this machine type is */
   private get scalePx() {
-    return this.settings.scale * (partById(this.game_.equipped.machine)?.machine?.size ?? 1);
+    return this.settings.scale * (partById(this.visualEquipment.machine)?.machine?.size ?? 1);
   }
   private game_: GameState;
   private current: State = 'idle';
@@ -80,8 +81,7 @@ export class ExcavatorScene extends Phaser.Scene {
   private walkWear = 0;
   private zTimer = 0;
   private restTimer = 0;
-  private jobCheck = 0;
-  private claimBlockedUntil = 0;
+  private jobs: JobController;
   private pokeBlockedUntil = 0;
   private lastTapAt = 0;
   private pokeTimes: number[] = [];
@@ -150,6 +150,30 @@ export class ExcavatorScene extends Phaser.Scene {
     this.progress = new Progress(this.host);
     this.scenery = new Scenery(this.host);
     this.life = new Life(this.host);
+    this.jobs = new JobController({
+      state: () => this.state,
+      visible: () => !!this.sprite?.visible,
+      mode: () => this.settings.jobMode,
+      working: () => this.enterWorking(),
+      waiting: () => this.enterWaiting(),
+      leave: () => this.startLeaving(),
+      returning: (report) => this.startReturning(report),
+      clear: () => this.leaveWorking(),
+      claimed: (report) => {
+        this.showReport(report);
+        api.dispatch({ type: 'ackReport' });
+        if (!['drag', 'fall'].includes(this.state)) this.enterCheer(1600);
+      },
+      recalled: () => {
+        this.say(pick(WORK.recalled));
+        if (!['drag', 'fall'].includes(this.state)) this.enterIdle(800);
+      },
+      started: (job) => {
+        if (['poke', 'garage', 'job'].includes(this.settings.onboarding)) {
+          this.advanceTip('done', '出發！收工後到車庫領取收穫吧');
+        } else if (this.settings.onboarding === 'done') this.say(pick(WORK.start(siteName(job.site))), 3000);
+      },
+    });
   }
 
   create() {
@@ -168,7 +192,7 @@ export class ExcavatorScene extends Phaser.Scene {
           `ptr=(${Math.round(p.x)},${Math.round(p.y)}) down=(${Math.round(p.downX)},${Math.round(p.downY)})`,
       );
       if (p.rightButtonDown()) return;
-      if (this.state === 'working') this.leaveWorking();
+      if (this.state === 'working' || this.state === 'waiting') this.leaveWorking();
       this.state = 'drag';
       this.dragging = true;
       this.vy = 0;
@@ -191,7 +215,9 @@ export class ExcavatorScene extends Phaser.Scene {
     });
 
     if (this.game_.job) {
-      if (this.settings.jobMode === 'stay') {
+      if (Date.now() >= this.game_.job.end) {
+        this.enterWaiting();
+      } else if (this.settings.jobMode === 'stay') {
         this.enterWorking();
       } else {
         this.state = 'away';
@@ -235,8 +261,12 @@ export class ExcavatorScene extends Phaser.Scene {
     return this.scale.height;
   }
 
+  private get visualEquipment() {
+    return this.game_.job?.equippedSnapshot ?? this.game_.equipped;
+  }
+
   private get build(): Build {
-    return { ...this.game_.equipped, tint: this.game_.tint } as unknown as Build;
+    return { ...this.visualEquipment, tint: this.game_.tint } as unknown as Build;
   }
 
   /** how the machine moves while it works a job, which depends on the tool it carries */
@@ -273,7 +303,7 @@ export class ExcavatorScene extends Phaser.Scene {
     }
     this.wantedSkin = s.skin;
     this.applyScale();
-    if (this.game_.job && this.sprite && previousMode !== s.jobMode) {
+    if (this.game_.job && Date.now() < this.game_.job.end && this.sprite && previousMode !== s.jobMode) {
       if (s.jobMode === 'away' && this.state === 'working') {
         this.leaveWorking();
         this.startLeaving();
@@ -307,39 +337,14 @@ export class ExcavatorScene extends Phaser.Scene {
   applyState(next: GameState) {
     const prev = this.game_;
     const buildChanged =
-      JSON.stringify(next.equipped) !== JSON.stringify(prev.equipped) ||
+      JSON.stringify(next.job?.equippedSnapshot ?? next.equipped) !== JSON.stringify(prev.job?.equippedSnapshot ?? prev.equipped) ||
       JSON.stringify(next.tint) !== JSON.stringify(prev.tint);
     this.game_ = next;
     if (buildChanged && this.sprite) this.refreshTextures();
     if (!this.sprite) return;
     this.reactToChanges(prev, next);
 
-    if (!prev.job && next.job) {
-      if (['poke', 'garage', 'job'].includes(this.settings.onboarding)) {
-        this.advanceTip('done', '出發!時間到了我會回報,有事隨時找我');
-      } else if (this.settings.onboarding === 'done') {
-        this.say(pick(WORK.start(siteName(next.job.site))), 3000);
-      }
-      if (this.settings.jobMode === 'away') this.startLeaving();
-      else if (['idle', 'walk', 'dig', 'sleep', 'cheer', 'play'].includes(this.state)) this.enterWorking();
-    } else if (prev.job && !next.job) {
-      this.claimBlockedUntil = 0;
-      const here = this.sprite.visible && !['leave', 'away', 'return'].includes(this.state);
-      const report = next.report && !next.report.seen ? next.report : null;
-      if (here) {
-        const wasWorking = this.state === 'working';
-        if (wasWorking) this.leaveWorking();
-        if (report) {
-          this.showReport(report);
-          api.dispatch({ type: 'ackReport' });
-          if (wasWorking) this.enterCheer(1600);
-        } else if (wasWorking) {
-          this.say(pick(WORK.recalled));
-          this.enterIdle(800);
-        }
-      } else if (report) this.startReturning(report);
-      else if (this.state === 'leave' || this.state === 'away') this.startReturning(null);
-    }
+    this.jobs.changed(prev, next);
 
     const before = levelInfo(prev.xp).level;
     const after = levelInfo(next.xp).level;
@@ -372,6 +377,10 @@ export class ExcavatorScene extends Phaser.Scene {
       return;
     }
     this.lastTapAt = now;
+    if (this.state === 'waiting') {
+      this.say('收工了！雙擊打開車庫，領取這次收穫', 3500);
+      return;
+    }
     if (this.settings.onboarding === 'poke') this.advanceTip('garage');
     const counts = now >= this.pokeBlockedUntil;
     this.pokeBlockedUntil = now + 1500;
@@ -576,6 +585,15 @@ export class ExcavatorScene extends Phaser.Scene {
     this.scenery.hide();
   }
 
+  private enterWaiting() {
+    this.leaveWorking();
+    this.state = 'waiting';
+    this.sprite!.setVisible(true).setAngle(0);
+    this.show('idle');
+    this.progress.enter();
+    this.say('收工了！到車庫領取收穫吧', 3500);
+  }
+
   private startWalk() {
     if (!this.sprite) return;
     const halfW = (W * this.scalePx) / 2;
@@ -657,18 +675,9 @@ export class ExcavatorScene extends Phaser.Scene {
     this.life.update(delta);
     this.speech.place();
 
-    const job = this.game_.job;
-    this.jobCheck -= delta;
-    if (this.jobCheck <= 0) {
-      this.jobCheck = 1000;
-      const now = Date.now();
-      if (job && now >= job.end && now >= this.claimBlockedUntil) {
-        this.claimBlockedUntil = now + 3000;
-        api.dispatch({ type: 'claim' });
-      }
-    }
+    this.jobs.resume(this.game_.job);
 
-    const busy = ['broken', 'drag', 'fall', 'leave', 'away', 'return'].includes(this.state);
+    const busy = ['broken', 'drag', 'fall', 'leave', 'away', 'return', 'waiting'].includes(this.state);
     if (this.game_.durability <= 0 && !busy) this.enterBroken();
 
     switch (this.state) {
@@ -699,6 +708,10 @@ export class ExcavatorScene extends Phaser.Scene {
         }
         this.progress.draw(this.game_.job);
         this.scenery.update();
+        break;
+
+      case 'waiting':
+        this.progress.draw(this.game_.job);
         break;
 
       case 'walk': {
@@ -819,8 +832,8 @@ export class ExcavatorScene extends Phaser.Scene {
             this.showReport(report);
             api.dispatch({ type: 'ackReport' });
           }
-          if (this.game_.job && this.settings.jobMode === 'stay') this.enterWorking();
-          else this.enterIdle(1500);
+          this.enterIdle(1500);
+          this.jobs.resume(this.game_.job);
         }
         break;
       }

@@ -33,6 +33,10 @@ function registerIpc() {
 
   handle('get-settings', () => publicSettings());
   handle('get-state', () => ctx.gameState);
+  handle('request-action', (_e, action) => {
+    if (!action || !['startJob', 'claim', 'cancelJob'].includes(action.type)) return { ok: false, message: '無效的派遣操作' };
+    return dispatch(action);
+  });
   handle('get-packs', () => ctx.packs);
   on('set-settings', (_e, patch) => updateSettings(patch));
   on('dispatch', (_e, action) => {

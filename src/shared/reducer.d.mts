@@ -1,4 +1,9 @@
 export interface Job {
+  id: string;
+  machineId: string;
+  equippedSnapshot: Record<string, string>;
+  rulesVersion: number;
+  rolls: number[];
   site: string;
   start: number;
   end: number;
@@ -8,9 +13,13 @@ export interface Drop {
   id: string;
   /** already owned, so it was turned into coins */
   dup: boolean;
+  coins?: number;
 }
 
 export interface Report {
+  jobId?: string;
+  machineId?: string;
+  breakdown?: { base: number; jackpotBonus: number; equipmentBonus: number; duplicates: number; xp: number; wear: number };
   site: string;
   coins: number;
   /** 0 to 3 parts brought back, and sometimes a whole machine as a fourth */
@@ -22,6 +31,7 @@ export interface Report {
 }
 
 export interface GameState {
+  schemaVersion: number;
   name: string;
   /** 0..100 */
   mood: number;
@@ -59,8 +69,8 @@ export type ClientAction =
   | { type: 'equip'; id: string }
   | { type: 'repair' }
   | { type: 'startJob'; site: string }
-  | { type: 'cancelJob' }
-  | { type: 'claim' }
+  | { type: 'cancelJob'; jobId: string }
+  | { type: 'claim'; jobId: string }
   | { type: 'ackReport' }
   | { type: 'ackMilestone' };
 
@@ -77,9 +87,9 @@ export type Action =
   | { type: 'buy'; id: string }
   | { type: 'equip'; id: string }
   | { type: 'repair' }
-  | { type: 'startJob'; site: string; now?: number }
-  | { type: 'cancelJob' }
-  | { type: 'claim'; now?: number; rolls?: number[] }
+  | { type: 'startJob'; site: string; now?: number; id?: string; rolls?: number[] }
+  | { type: 'cancelJob'; now?: number; jobId?: string }
+  | { type: 'claim'; now?: number; jobId?: string }
   | { type: 'ackReport' }
   | { type: 'ackMilestone'; now?: number };
 

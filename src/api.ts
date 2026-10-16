@@ -41,6 +41,7 @@ export interface ExcavatorApi {
   onSettings(cb: (s: Settings) => void): void;
   getState(): Promise<GameState>;
   dispatch(action: ClientAction): void;
+  requestAction(action: Extract<ClientAction, { type: 'startJob' | 'cancelJob' | 'claim' }>): Promise<ActionResult & { state?: GameState }>;
   onState(cb: (s: GameState) => void): void;
   registerSkins(list: { id: string; name: string }[]): void;
   setInteractive(v: boolean): void;
@@ -88,6 +89,21 @@ function createMock(): ExcavatorApi {
   });
 
   const desktopOnly = async (): Promise<ActionResult> => ({ ok: false, message: '這個功能只在桌面版可用' });
+  const perform = (action: ClientAction): ActionResult & { state?: GameState } => {
+    const now = Date.now();
+    const current = reduce(readState(), { type: 'tick', now });
+    const internal = (action.type === 'wear' || action.type === 'rest' ? { ...action, amount: 1 } : action) as Action;
+    const next = reduce(current, stamp(internal, now));
+    if (next === current && ['startJob', 'claim', 'cancelJob'].includes(action.type)) {
+      if (action.type === 'claim' && action.jobId && action.jobId === current.report?.jobId) return { ok: true, message: '已領取', state: current };
+      return { ok: false, message: '工作狀態已變更或尚未完成，請重新確認。' };
+    }
+    try { localStorage.setItem(STATE_KEY, JSON.stringify(next)); }
+    catch { return { ok: false, message: '瀏覽器存檔失敗，請釋放空間後重試。' }; }
+    state = next;
+    emitState();
+    return { ok: true, message: '操作成功', state };
+  };
   return {
     exportSave: desktopOnly,
     importSave: desktopOnly,
@@ -106,17 +122,8 @@ function createMock(): ExcavatorApi {
     },
     onSettings: (cb) => void settingsCbs.push(cb),
     getState: async () => state,
-    dispatch(action) {
-      const now = Date.now();
-      const internal = (
-        action.type === 'wear' || action.type === 'rest' ? { ...action, amount: 1 } : action
-      ) as Action;
-      const next = reduce(reduce(state, { type: 'tick', now }), stamp(internal, now));
-      if (next === state) return;
-      state = next;
-      localStorage.setItem(STATE_KEY, JSON.stringify(state));
-      emitState();
-    },
+    dispatch: (action) => { perform(action); },
+    requestAction: async (action) => perform(action),
     onState: (cb) => void stateCbs.push(cb),
     registerSkins() {},
     setInteractive() {},

@@ -47,7 +47,7 @@ import { digCoins } from '../src/shared/reducer.mjs';
 ok(digCoins(DEFAULT_EQUIPPED) === 4, 'default machine pays 4 per dig');
 ok(digCoins({ ...DEFAULT_EQUIPPED, stick: 'stick_short' }) === 4 /* 4*1.1=4.4 */, 'short stick alone rounds to 4');
 ok(digCoins({ ...DEFAULT_EQUIPPED, bucket: 'bucket_breaker', stick: 'stick_short', boom: 'boom_tab', counterweight: 'cw_heavy' }) === Math.round(4 * 1.6 * 1.1 * 1.05 * 1.05), 'bucket x stick x boom x counterweight stack: ' + digCoins({ ...DEFAULT_EQUIPPED, bucket: 'bucket_breaker', stick: 'stick_short', boom: 'boom_tab', counterweight: 'cw_heavy' }));
-const job = (equipped) => { let s = { ...normalize(null), equipped }; s = reduce(s, { type: 'startJob', site: 'mine', now: 0 }); return reduce(s, { type: 'claim', now: 999999999, rolls: [0, 0.99, 0] }).report.coins; };
+const job = (equipped) => { let s = normalize({ owned: Object.values(equipped), equipped }); s = reduce(s, { type: 'startJob', site: 'mine', now: 0, rolls: [0, 0.99, 0, 0.99, 0, 0.99, 0, 0.99, 0, 0.99, 0] }); return reduce(s, { type: 'claim', now: 999999999 }).report.coins; };
 ok(job({ ...DEFAULT_EQUIPPED, stick: 'stick_long' }) > job(DEFAULT_EQUIPPED), 'the long stick raises job pay: ' + job(DEFAULT_EQUIPPED) + ' -> ' + job({ ...DEFAULT_EQUIPPED, stick: 'stick_long' }));
 ok(job({ ...DEFAULT_EQUIPPED, bucket: 'bucket_breaker' }) === job(DEFAULT_EQUIPPED), 'a bucket does not change job pay (only the long stick does)');
 

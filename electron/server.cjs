@@ -37,9 +37,14 @@ function call(pathname, init = {}) {
 }
 
 function dispatch(action) {
-  call('/dispatch', { method: 'POST', body: JSON.stringify(action) })
-    .then((res) => { if (!res.ok) throw new Error(`dispatch: HTTP ${res.status}`); })
-    .catch((err) => logLine('dispatch-failed', err));
+  return call('/dispatch', { method: 'POST', body: JSON.stringify(action), signal: AbortSignal.timeout(10_000) })
+    .then(async (res) => {
+      if (!res.ok) return { ok: false, message: res.status === 503 ? '存檔失敗，進度未變更。請檢查磁碟後重試。' : '工作狀態已變更或尚未完成，請重新確認。' };
+      return { ok: true, message: '操作成功', state: await res.json() };
+    }).catch((err) => {
+      logLine('dispatch-failed', err);
+      return { ok: false, message: '未能確認操作結果，請稍後重試；同一份收穫不會重複領取。' };
+    });
 }
 
 async function listenForState(onServerState) {

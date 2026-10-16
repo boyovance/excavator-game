@@ -5,6 +5,7 @@ import { DEFAULT_STATE, normalize } from './normalize.mjs';
 import { repairCost } from './info.mjs';
 import { claimJob, digCoins } from './rewards.mjs';
 import { HEX_COLOR, MOOD_FLOOR, NAME_MAX, clamp, num, withMood } from './util.mjs';
+import { normalizeJob } from './jobs.mjs';
 
 export { MILESTONES, companionDays } from './milestones.mjs';
 export { DEFAULT_STATE, normalize } from './normalize.mjs';
@@ -134,11 +135,12 @@ export function reduce(state, action) {
       const site = siteById(action.site);
       if (!site || state.job || state.durability <= 0 || !siteOpenTo(site, state.equipped.machine)) return state;
       const now = num(action.now);
-      return { ...state, job: { site: site.id, start: now, end: now + site.minutes * 60000 } };
+      return { ...state, job: normalizeJob({ id: action.id, site: site.id, start: now, end: now + site.minutes * 60000,
+        equippedSnapshot: { ...state.equipped }, rolls: action.rolls }, state.equipped, state.owned) };
     }
 
     case 'cancelJob':
-      return state.job ? { ...state, job: null } : state;
+      return state.job && num(action.now) < state.job.end && (!action.jobId || action.jobId === state.job.id) ? { ...state, job: null } : state;
 
     case 'claim':
       return claimJob(state, action);

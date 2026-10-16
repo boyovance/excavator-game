@@ -33,6 +33,9 @@ function sanitize(action) {
       return { type: action.type, id: str(action.id, 64) };
     case 'startJob':
       return { type: 'startJob', site: str(action.site, 64) };
+    case 'claim':
+    case 'cancelJob':
+      return { type: action.type, jobId: typeof action.jobId === 'string' ? str(action.jobId, 128) : undefined };
     case 'tint':
       return { type: 'tint', slot: str(action.slot, 20), color: action.color == null ? null : str(action.color, 9) };
     default:
@@ -129,18 +132,29 @@ export async function startServer({ dataDir, token, port = 0, host = '127.0.0.1'
   const tick = () => apply({ type: 'tick', now: now() });
 
   const handleAction = (raw) => {
-    if (!raw || typeof raw !== 'object' || !CLIENT_ACTIONS.has(raw.type)) return false;
+    if (!raw || typeof raw !== 'object' || !CLIENT_ACTIONS.has(raw.type)) return 400;
+    if (['claim', 'cancelJob'].includes(raw.type) && (typeof raw.jobId !== 'string' || !raw.jobId || raw.jobId.length > 128)) return 400;
     const t = now();
     const cooldown = COOLDOWN_MS[raw.type];
     if (cooldown) {
-      if (t - (lastAt[raw.type] ?? 0) < cooldown) return true;
+      if (t - (lastAt[raw.type] ?? 0) < cooldown) return 200;
       lastAt[raw.type] = t;
     }
     tick();
     // Resting only makes sense while the machine is broken down.
-    if (raw.type === 'rest' && state.durability >= 15) return true;
-    apply(stamp(sanitize(raw), t));
-    return true;
+    if (raw.type === 'rest' && state.durability >= 15) return 200;
+    const action = stamp(sanitize(raw), t);
+    if (['startJob', 'claim', 'cancelJob'].includes(raw.type)) {
+      const next = reduce(state, action);
+      if (next === state) {
+        if (raw.type === 'claim' && raw.jobId && raw.jobId === state.report?.jobId) return 200;
+        return 409;
+      }
+      if (!writer.commit(next)) return 503;
+      state = next;
+      publish();
+    } else apply(action);
+    return 200;
   };
 
   const json = (res, code, body) => {
@@ -208,7 +222,8 @@ export async function startServer({ dataDir, token, port = 0, host = '127.0.0.1'
 
     if (req.method === 'POST' && url.pathname === '/dispatch') {
       return readJson(MAX_BODY, (body) => {
-        if (!handleAction(body)) return json(res, 400, { error: 'bad-action' });
+        const status = handleAction(body);
+        if (status !== 200) return json(res, status, { error: status === 503 ? 'save-failed' : status === 409 ? 'job-conflict' : 'bad-action' });
         json(res, 200, state);
       });
     }

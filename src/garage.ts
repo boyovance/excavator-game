@@ -15,7 +15,7 @@ function render() {
 }
 
 bindParts(render);
-bindJobs();
+bindJobs(render);
 bindPet();
 skinEl.addEventListener('change', () => api.setSettings({ skin: skinEl.value }));
 

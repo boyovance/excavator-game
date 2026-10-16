@@ -52,7 +52,7 @@ export class Progress {
       .fillStyle(0xffd54a, 1)
       .fillRect(x, y, w * pct, h);
     const sec = Math.ceil(left / 1000);
-    const clock = left > 0 ? `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}` : '收工中';
+    const clock = left > 0 ? `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}` : '待領取';
     this.label.setText(`${siteName(job.site)}  ${clock}`).setPosition(s.x, y - 4);
   }
 }

@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('api', {
   onSettings: (cb) => ipcRenderer.on('settings', (_e, s) => cb(s)),
   getState: () => ipcRenderer.invoke('get-state'),
   dispatch: (action) => ipcRenderer.send('dispatch', action),
+  requestAction: (action) => ipcRenderer.invoke('request-action', action),
   onState: (cb) => ipcRenderer.on('state', (_e, s) => cb(s)),
   exportSave: () => ipcRenderer.invoke('export-save'),
   importSave: () => ipcRenderer.invoke('import-save'),

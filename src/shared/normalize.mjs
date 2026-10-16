@@ -2,6 +2,7 @@ import { DEFAULT_EQUIPPED, MACHINE_SLOTS, PARTS, TINT_SLOTS, partById, siteById 
 import { grantsOf, loadoutFor } from './machine.mjs';
 import { DATE_RE } from './milestones.mjs';
 import { HEX_COLOR, MOOD_FLOOR, NAME_MAX, clamp, num } from './util.mjs';
+import { normalizeJob } from './jobs.mjs';
 
 const cleanTint = (raw) => {
   const out = {};
@@ -17,6 +18,7 @@ const cleanTint = (raw) => {
 const FREE_IDS = PARTS.filter((p) => p.price === 0).map((p) => p.id);
 
 export const DEFAULT_STATE = {
+  schemaVersion: 2,
   name: '小黃',
   mood: 60,
   moodAt: 0,
@@ -66,15 +68,12 @@ export function normalize(raw) {
       if (id !== machine && owned.has(id) && partById(id)?.slot === 'machine') loadouts[id] = loadoutFor(id, ownedList, parts);
     }
   }
-  const job =
-    s.job && siteById(s.job.site) && Number.isFinite(s.job.start) && Number.isFinite(s.job.end)
-      ? { site: s.job.site, start: s.job.start, end: s.job.end }
-      : null;
+  const job = normalizeJob(s.job, equipped, ownedList);
   const r = s.report;
   // older saves stored a single `drop` / `dup`; newer ones store a list of drops
   const drops =
     r && Array.isArray(r.drops)
-      ? r.drops.filter((d) => d && partById(d.id)).slice(0, 4).map((d) => ({ id: d.id, dup: !!d.dup }))
+      ? r.drops.filter((d) => d && partById(d.id)).slice(0, 4).map((d) => ({ id: d.id, dup: !!d.dup, ...(Number.isFinite(d.coins) ? { coins: Math.max(0, d.coins) } : {}) }))
       : r && partById(r.drop)
         ? [{ id: r.drop, dup: !!r.dup }]
         : [];
@@ -87,10 +86,15 @@ export function normalize(raw) {
           jackpot: !!r.jackpot,
           at: num(r.at),
           seen: !!r.seen,
+          jobId: typeof r.jobId === 'string' ? r.jobId.slice(0, 128) : undefined,
+          machineId: partById(r.machineId)?.slot === 'machine' ? r.machineId : undefined,
+          breakdown: r.breakdown && typeof r.breakdown === 'object'
+            ? Object.fromEntries(['base', 'jackpotBonus', 'equipmentBonus', 'duplicates', 'xp', 'wear'].map((key) => [key, num(r.breakdown[key])])) : undefined,
         }
       : null;
   const name = typeof s.name === 'string' ? s.name.trim().slice(0, NAME_MAX) : '';
   return {
+    schemaVersion: 2,
     name: name || DEFAULT_STATE.name,
     mood: clamp(num(s.mood, DEFAULT_STATE.mood), MOOD_FLOOR, 100),
     moodAt: Math.max(0, num(s.moodAt)),
