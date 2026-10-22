@@ -5,13 +5,13 @@ import { PARTS, siteOpenTo } from '../src/shared/parts.mjs';
 import { scenario } from '../src/shared/balance.mjs';
 
 const rolls = [0.5, 0.5, 0.99, 0.99, 0, 0.99, 0, 0.99, 0, 0.99, 0];
-assert.equal(CURRENT_ECONOMY_VERSION, 2);
+assert.equal(CURRENT_ECONOMY_VERSION, 3);
 for (const m of PARTS.filter((p) => p.machine)) for (const site of economySites().filter((s) => siteOpenTo(s, m.id))) {
   const s = { ...scenario(m.id), durability: site.wear - 1 };
   const action = { type: 'startJob', site: site.id, now: 1000, id: 'release-boundary', rolls, rulesVersion: 1 };
   assert.equal(reduce(s, action), s);
   const started = reduce({ ...s, durability: site.wear }, action);
-  assert.equal(started.job.rulesVersion, 2);
+  assert.equal(started.job.rulesVersion, 3);
   assert.equal(started.job.end - started.job.start, site.minutes * 60000);
   const finished = reduce(started, { type: 'claim', jobId: started.job.id, now: started.job.end });
   assert.equal(finished.durability, 0);
@@ -19,7 +19,7 @@ for (const m of PARTS.filter((p) => p.machine)) for (const site of economySites(
   assert.equal(finished.report.breakdown.wear, site.wear);
   assert(finished.coins >= started.coins);
 }
-console.log('PASS Release economy: every compatible machine/site enforces exact wear boundary and version 2 settlement');
+console.log('PASS Release economy: every compatible machine/site enforces exact wear boundary and version 3 settlement');
 
 const raw = { ...normalize(null), durability: 1, job: { site: 'yard', id: 'pre-version', start: 1000, end: 301000, rolls } };
 const old = normalize(raw);

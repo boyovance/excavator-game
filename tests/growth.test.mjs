@@ -10,7 +10,7 @@ import { startServer } from '../server/index.mjs';
 const test = (name, fn) => { fn(); console.log('PASS ' + name); };
 const base = normalize(null);
 test('fresh profile opens only yard and reset has no legacy rights', () => {
-  assert.equal(base.schemaVersion, 3);
+  assert.equal(base.schemaVersion, 4);
   assert.deepEqual(base.growthClaimed, []); assert.deepEqual(base.legacySites, []);
   assert.deepEqual(SITES.filter((s) => siteUnlocked(base, s.id)).map((s) => s.id), ['yard']);
   assert.equal(siteUnlocked(base, 'invalid'), false);

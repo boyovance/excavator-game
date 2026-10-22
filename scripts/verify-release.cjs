@@ -85,7 +85,7 @@ let g;
       await click('[data-site=yard]');
       assert(await js('document.querySelector("#job-confirm-body").textContent.includes("12–32")'));
       await click('#job-depart'); await until(() => !!ctx.gameState.job);
-      assert.equal(ctx.gameState.job.rulesVersion, 2);
+      assert.equal(ctx.gameState.job.rulesVersion, 3);
       const current = ctx.gameState;
       await replace({ ...current, job: { ...current.job, start: Date.now() - 301000, end: Date.now() - 1000,
         rolls: [0.5, 0.5, 0.99, 0.99, 0, 0.99, 0, 0.99, 0, 0.99, 0] } });
@@ -155,11 +155,11 @@ let g;
       assert.equal(ctx.gameState.report.breakdown.base, 30); assert.equal(ctx.gameState.durability, 1);
       const seed = ctx.rules.reduce({ ...ctx.rules.normalize(null), durability: 8, coins: 100 },
         { type: 'startJob', site: 'yard', id: 'release-current', now: Date.now() - 301000, rolls: Array(11).fill(0.99) });
-      assert.equal(seed.job.rulesVersion, 2);
+      assert.equal(seed.job.rulesVersion, 3);
       await replace(seed); write('expected.json', { job: seed.job, coins: seed.coins });
       console.log('PASS Release migration: legacy job, original reward/durability, settings and exact saved dice survive process restart');
     } else {
-      assert.equal(expected.job.rulesVersion, 2);
+      assert.equal(expected.job.rulesVersion, 3);
       assert((await request({ type: 'claim', jobId: expected.job.id })).ok);
       const coins = ctx.gameState.coins;
       assert.equal(ctx.gameState.report.breakdown.base, 32); assert.equal(ctx.gameState.durability, 0);

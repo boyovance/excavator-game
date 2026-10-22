@@ -1,8 +1,9 @@
 import { api } from '../api';
-import { MACHINE_SLOTS, fitsMachine, partById, siteOpenTo } from '../shared/parts.mjs';
+import { MACHINE_SLOTS, fitsMachine, partById, siteById, siteOpenTo } from '../shared/parts.mjs';
 import { economySites, economySite, departureDurability } from '../shared/economy.mjs';
 import { jobMultiplier } from '../shared/jobs.mjs';
 import { canVisitSite, siteLevel, siteUnlocked } from '../shared/growth.mjs';
+import { PITY_FROM_VERSION, pityLimit, pityProgress } from '../shared/pity.mjs';
 import { partName, siteName, type ClientAction } from '../shared/reducer.mjs';
 import { jobsEl, reportEl } from './dom';
 import { ui } from './store';
@@ -18,6 +19,8 @@ let failed = false;
 let selected: string | null = null;
 let renderAll: () => void;
 let shownPhase = '';
+const pityText = (p: { count: number; limit: number; guaranteed?: boolean }) =>
+  `<p class="pity-note ${p.guaranteed ? 'pity-due' : ''}">新機型保底 ${p.count}／${p.limit}${p.guaranteed ? ' · 本趟必得新機型' : ''}</p>`;
 const dialog = () => document.getElementById('job-confirm') as HTMLDialogElement;
 
 export function renderJobs() {
@@ -30,7 +33,8 @@ export function renderJobs() {
       <div><dt>基礎收益</dt><dd>${r.breakdown.base}</dd></div><div><dt>大豐收加成</dt><dd>+${r.breakdown.jackpotBonus}</dd></div>
       <div><dt>裝備加成</dt><dd>${r.breakdown.equipmentBonus >= 0 ? '+' : ''}${r.breakdown.equipmentBonus}</dd></div><div><dt>重複折現</dt><dd>+${r.breakdown.duplicates}</dd></div>
     </dl><p class="reward-extra">經驗 +${r.breakdown.xp}　·　耐久 -${r.breakdown.wear}${r.jackpot ? '　·　大豐收！' : ''}</p>` : ''}
-    <div class="drop-list">${r.drops.length ? r.drops.map((d) => `<span class="drop-chip ${d.dup ? '' : 'new-drop'}">${d.dup ? d.coins == null ? '重複 → 已折現' : `重複 → +${d.coins} 金幣` : partById(d.id)?.slot === 'machine' ? '新機型' : '新零件'}<b>${esc(partName(d.id))}</b></span>`).join('') : '<p class="hint">本次沒有帶回零件，再試另一趟吧。</p>'}</div>
+    <div class="drop-list">${r.drops.length ? r.drops.map((d) => `<span class="drop-chip ${d.dup ? '' : 'new-drop'}">${d.dup ? d.coins == null ? '重複 → 已折現' : `重複 → +${d.coins} 金幣` : partById(d.id)?.slot === 'machine' ? d.pity ? '新機型 · 保底' : '新機型' : '新零件'}<b>${esc(partName(d.id))}</b></span>`).join('') : '<p class="hint">本次沒有帶回零件，再試另一趟吧。</p>'}</div>
+    ${r.pity ? pityText({ ...r.pity, guaranteed: r.pity.count + 1 >= r.pity.limit }) : ''}
   </details>` : '';
 
   const job = state.job;
@@ -41,7 +45,8 @@ export function renderJobs() {
     jobsEl.innerHTML = `<article class="mission-card ${ready ? 'mission-ready' : ''}">
       <div class="mission-heading"><span class="mission-tag">${ready ? '工作完成 · 待領取' : '派遣進行中'}</span><span class="hint">單一工作槽</span></div>
       <h3>${esc(siteName(job.site))}</h3><p class="mission-machine">${esc(partName(job.machineId))}</p>
-      ${job.rulesVersion === 1 ? '<p class="hint">升級前派遣：保留原版收益與耐久規則結算。</p>' : ''}
+      ${job.rulesVersion === 1 ? '<p class="hint">升級前派遣：保留原版收益與耐久規則結算。</p>' : job.rulesVersion < PITY_FROM_VERSION && pityLimit(siteById(job.site)) ? '<p class="hint">升級前派遣：按出發時規則結算，不計入新機型保底。</p>' : ''}
+      ${job.rulesVersion >= PITY_FROM_VERSION && pityProgress(state, job.site) ? pityText({ count: job.pity ?? 0, limit: pityLimit(siteById(job.site)), guaranteed: (job.pity ?? 0) + 1 >= pityLimit(siteById(job.site)) }) : ''}
       <div class="bar mission-bar"><i id="job-bar"></i></div>
       <div class="mission-timing"><strong id="job-left"></strong><span>預計 ${timeText(job.end)} 完成</span></div>
       <details class="loadout"><summary>查看出發配置 · 收益 ×${jobMultiplier(job.equippedSnapshot).toFixed(2)}</summary><p>${equipmentList(job.equippedSnapshot)}</p><p class="hint">車庫換裝不影響這次派遣；所有機型共用耐久。</p></details>
@@ -63,6 +68,7 @@ export function renderJobs() {
     return `<article class="site-card ${open ? '' : 'site-locked'}"><div class="site-heading"><h3>${esc(s.name)}</h3><span class="duration-chip">${fmtMinutes(s.minutes)}</span></div>
       <p class="site-reward">${s.coins[0]}–${s.coins[1]} <small>基礎金幣</small></p>
       <p class="site-stats">經驗 +${s.xp}　·　磨損 ${s.wear}　·　大豐收 ${Math.round(s.jackpot * 100)}%</p>
+      ${open && pityProgress(state, s.id) ? pityText(pityProgress(state, s.id)!) : ''}
       <p class="hint">${unlocked ? state.legacySites.includes(s.id) ? '已開放 · 舊存檔保留權限' : `已開放 · Lv.${siteLevel(s.id)}` : `Lv.${siteLevel(s.id)} 解鎖 · 前往成長面板查看目標`}</p>
       ${fits ? `<details class="site-loot"><summary>可能掉落 · 最多 ${s.drops.length} 件零件</summary><p>${esc(loot)}</p></details>` : `<p class="fits">適用機型：${s.machines!.map((id) => esc(partName(id))).join('、')}</p>`}
       <p class="hint">出發至少 ${required} 耐久；維修不自動扣款。${open && state.durability < required ? '耐久不足，請到上方維修或免費休息後先跑短工地。' : ''}</p>
@@ -97,6 +103,7 @@ function showConfirmation(siteId: string) {
     <p class="confirm-machine">${esc(partName(ui.state.equipped.machine))}</p>
     <dl class="confirm-grid"><div><dt>工作時間</dt><dd>${fmtMinutes(site.minutes)}</dd></div><div><dt>預計完成</dt><dd>${timeText(Date.now() + site.minutes * 60_000)}</dd></div>
     <div><dt>裝備收益倍率</dt><dd>×${multiplier.toFixed(2)}</dd></div><div><dt>預計磨損</dt><dd>${site.wear} 耐久</dd></div></dl>
+    ${pityProgress(ui.state, site.id) ? pityText(pityProgress(ui.state, site.id)!) + `<p class="hint">連續 ${pityLimit(site)} 趟沒帶回新機型時，第 ${pityLimit(site)} 趟必定帶回一台未擁有機型（按原權重挑選）。</p>` : ''}
     <p>一般收益約 <b>${Math.round(site.coins[0] * multiplier)}–${Math.round(site.coins[1] * multiplier)}</b> 金幣，另有大豐收與掉落機會。</p>
     <p class="hint">出發至少 ${departureDurability(site)} 耐久；重複零件按標價 25% 折現（5～25 金幣），維修由你自行決定。</p>
     <details class="loadout"><summary>本次帶上的配件</summary><p>${equipmentList(ui.state.equipped)}</p></details>

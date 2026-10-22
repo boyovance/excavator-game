@@ -123,6 +123,44 @@ async function until(check) {
   assert.equal(ctx.gameState.coins, paid);
   assert.equal(errors.length, 0, errors.join('\n'));
   console.log('PASS Dispatch Electron: confirm, double-click guard, fixed equipment, timer, manual claim, failed-save UI, retry, breakdown, reload and away-mode return');
+  if (!demo) {
+    // New-machine guarantee: progress on the cards, the due job in the confirmation, and the marked result.
+    updateSettings({ jobMode: 'stay' });
+    await replace({ ...ctx.gameState, job: null, report: null, xp: 4600, durability: 100, coins: 500, machinePity: { mine: 8, river: 3 } });
+    await until(() => js('!!document.querySelector("[data-site=mine]") && !document.querySelector("[data-site=mine]").disabled'));
+    const card = (id) => js(`document.querySelector("[data-site=${id}]").closest("article").textContent`);
+    assert((await card('mine')).includes('新機型保底 8／9 · 本趟必得新機型'));
+    assert((await card('river')).includes('新機型保底 3／10'));
+    assert(!(await card('river')).includes('必得'));
+    assert(!(await card('rail')).includes('新機型保底'));
+    await js('document.querySelector("[data-site=mine]").closest("article").scrollIntoView({block:"center"})'); await shot('07-pity-site');
+    await js('document.querySelector("[data-site=mine]").click()');
+    assert(await js('document.querySelector("#job-confirm").open'));
+    assert(await js('document.querySelector("#job-confirm-body").textContent.includes("本趟必得新機型") && document.querySelector("#job-confirm-body").textContent.includes("第 9 趟必定")'));
+    await shot('08-pity-confirm');
+    await js('document.querySelector("#job-depart").click()');
+    await until(() => ctx.gameState.job && js('!!document.querySelector("[data-job=cancel]")'));
+    const pityJob = ctx.gameState.job;
+    assert.equal(pityJob.rulesVersion, 3); assert.equal(pityJob.pity, 8);
+    assert(await js('document.querySelector("#jobs").textContent.includes("本趟必得新機型")'));
+    await replace({ ...ctx.gameState, job: { ...pityJob, start: Date.now() - 7_201_000, end: Date.now() - 1000, rolls: [0.5, 0.5, 0.99, 0.99, 0, 0.99, 0, 0.99, 0, 0.99, 0] } });
+    await until(() => js('!!document.querySelector("[data-job=claim]")'));
+    await js('document.querySelector("[data-job=claim]").click()');
+    await until(() => !ctx.gameState.job && js('!!document.querySelector(".reward-grid")'));
+    const machine = ctx.gameState.report.drops.find((d) => d.id === 'm_mining');
+    assert(machine && machine.pity, 'the guaranteed machine is marked');
+    assert(ctx.gameState.owned.includes('m_mining'));
+    assert.equal(ctx.gameState.machinePity.mine, undefined);
+    assert(await js('document.querySelector(".job-report").textContent.includes("新機型 · 保底")'));
+    await focusJobs(); await shot('09-pity-result');
+    ctx.garageWin.setContentSize(380, originalSize[1]); await wait(150);
+    assert(await js('document.documentElement.scrollWidth <= innerWidth'));
+    await js('document.querySelector("[data-site=river]").closest("article").scrollIntoView({block:"center"})'); await shot('10-pity-narrow');
+    nativeTheme.themeSource = 'dark'; await shot('11-pity-dark');
+    nativeTheme.themeSource = 'light'; ctx.garageWin.setContentSize(...originalSize);
+    assert.equal(errors.length, 0, errors.join(String.fromCharCode(10)));
+    console.log('PASS Machine guarantee UI: per-site progress, due confirmation, fixed snapshot, marked result, narrow and dark layouts');
+  }
   console.log(`Screenshots: ${output}`);
   if (demo) {
     updateSettings({ jobMode: 'stay' });

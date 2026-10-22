@@ -34,7 +34,7 @@ export function renderDispatchResult() {
   const html = `<div class="result-level">Lv.${from}<span aria-label="升級至">→</span>Lv.${to}</div>
     <section class="result-section"><h3>派遣收穫 · 已入庫</h3><p class="hint">${esc(siteName(r.site))} · ${esc(partName(r.machineId ?? 'm_std'))}</p>
       <div class="result-totals"><strong>+${r.coins} 金幣</strong><span>+${r.breakdown!.xp} 經驗</span><span>耐久 −${r.breakdown!.wear}</span></div>
-      <div class="drop-list">${r.drops.length ? r.drops.map((d) => `<span class="drop-chip ${d.dup ? '' : 'new-drop'}"><b>${esc(partName(d.id))}</b>${d.dup ? `重複 · ${d.coins == null ? '已折現' : `+${d.coins} 金幣`}` : '新收藏'}</span>`).join('') : '<span class="hint">本次沒有帶回零件</span>'}</div>
+      <div class="drop-list">${r.drops.length ? r.drops.map((d) => `<span class="drop-chip ${d.dup ? '' : 'new-drop'}"><b>${esc(partName(d.id))}</b>${d.dup ? `重複 · ${d.coins == null ? '已折現' : `+${d.coins} 金幣`}` : d.pity ? '新收藏 · 保底' : '新收藏'}</span>`).join('') : '<span class="hint">本次沒有帶回零件</span>'}</div>
       <p class="hint">以上金幣已包含裝備加成、大豐收與重複折現，不需再領一次。</p></section>
     <section class="result-section"><h3>${sites.length ? '新開放工地' : '等級成長'}</h3>${sites.length ? `<ul class="result-sites">${sites.map((id) => {
       const site = siteById(id)!;

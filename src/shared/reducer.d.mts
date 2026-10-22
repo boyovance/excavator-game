@@ -4,6 +4,8 @@ export interface Job {
   equippedSnapshot: Record<string, string>;
   rulesVersion: number;
   rolls: number[];
+  /** rules 3+: the site's new-machine guarantee count when the job left */
+  pity?: number;
   site: string;
   start: number;
   end: number;
@@ -14,12 +16,16 @@ export interface Drop {
   /** already owned, so it was turned into coins */
   dup: boolean;
   coins?: number;
+  /** this machine came from the guarantee rather than the natural roll */
+  pity?: boolean;
 }
 
 export interface Report {
   jobId?: string;
   machineId?: string;
   breakdown?: { base: number; jackpotBonus: number; equipmentBonus: number; duplicates: number; xp: number; wear: number };
+  /** rules 3+ jobs that brought no new machine: guarantee progress after this job */
+  pity?: { count: number; limit: number };
   site: string;
   coins: number;
   /** 0 to 3 parts brought back, and sometimes a whole machine as a fourth */
@@ -34,6 +40,8 @@ export interface GameState {
   schemaVersion: number;
   growthClaimed: string[];
   legacySites: string[];
+  /** per site: rules 3+ jobs in a row that brought no new machine */
+  machinePity: Record<string, number>;
   name: string;
   /** 0..100 */
   mood: number;

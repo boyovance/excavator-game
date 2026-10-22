@@ -3,6 +3,7 @@ import { grantsOf, switchMachine } from './machine.mjs';
 import { digCoins } from './rewards.mjs';
 import { jobMultiplier } from './jobs.mjs';
 import { siteLevel, siteUnlocked } from './growth.mjs';
+import { pityLimit } from './pity.mjs';
 
 export const buyable = (part) => part.price != null && !part.workOnly;
 
@@ -39,7 +40,7 @@ export function partSources(part, machineId, state = { xp: 0, legacySites: [] })
     const open = siteOpenTo(site, machineId);
     const unlocked = siteUnlocked(state, site.id);
     sources.push({ kind: 'site', id: site.id, name: site.name, available: unlocked && open && lootFits,
-      note: `${site.minutes} 分鐘 · ${!unlocked ? `Lv.${siteLevel(site.id)} 解鎖 · ` : ''}${!open ? '目前機型不能進入' : !lootFits ? '需改用適配機型才有機會掉落此零件' : part.slot === 'machine' ? '有機會帶回未擁有機型' : '有機會掉落，非保證獲得'}` });
+      note: `${site.minutes} 分鐘 · ${!unlocked ? `Lv.${siteLevel(site.id)} 解鎖 · ` : ''}${!open ? '目前機型不能進入' : !lootFits ? '需改用適配機型才有機會掉落此零件' : part.slot === 'machine' ? `有機會帶回未擁有機型；連續 ${pityLimit(site)} 趟未帶回必得一台` : '有機會掉落，非保證獲得'}` });
   }
   return sources;
 }

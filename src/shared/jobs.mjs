@@ -1,6 +1,7 @@
 import { DEFAULT_EQUIPPED, partById, siteById } from './parts.mjs';
 import { loadoutFor } from './machine.mjs';
 import { economyVersion, CURRENT_ECONOMY_VERSION } from './economy.mjs';
+import { PITY_FROM_VERSION, pityLimit } from './pity.mjs';
 
 export const RULES_VERSION = CURRENT_ECONOMY_VERSION;
 export const ROLLS_NEEDED = 11;
@@ -33,5 +34,12 @@ export function normalizeJob(raw, equipped, owned) {
   }
   const rolls = Array.isArray(raw.rolls) && raw.rolls.length === ROLLS_NEEDED && raw.rolls.every((r) => Number.isFinite(r) && r >= 0 && r < 1)
     ? [...raw.rolls] : legacyRolls(id);
-  return { id, site: raw.site, start: raw.start, end: raw.end, machineId, equippedSnapshot: snapshot, rulesVersion: economyVersion(raw.rulesVersion), rolls };
+  const rulesVersion = economyVersion(raw.rulesVersion);
+  const job = { id, site: raw.site, start: raw.start, end: raw.end, machineId, equippedSnapshot: snapshot, rulesVersion, rolls };
+  if (rulesVersion >= PITY_FROM_VERSION) {
+    const limit = pityLimit(siteById(raw.site));
+    const n = Math.floor(Number(raw.pity));
+    job.pity = limit && Number.isFinite(n) && n > 0 ? Math.min(limit - 1, n) : 0;
+  }
+  return job;
 }

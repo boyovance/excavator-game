@@ -122,7 +122,7 @@ export function targetMachineTime({ siteId, machine, target, version = 1, sample
   while (times.length < samples) times.push(Infinity);
   const q = (p) => { const v = quantile(times, p); return Number.isFinite(v) ? v : null; };
   return { version, siteId, machine, target, samples, seed, completed: complete, censored: samples - complete,
-    p50Hours: q(0.5), p90Hours: q(0.9), windowHours: 2000 * site.minutes / 60 };
+    p50Hours: q(0.5), p90Hours: q(0.9), maxHours: complete === samples ? Math.max(...times) : null, windowHours: 2000 * site.minutes / 60 };
 }
 
 /** Dominance on four scalar rates; distinct loot sources are deliberately not valued as money. */

@@ -18,10 +18,12 @@ for (const machine of MACHINES) for (const loadout of ['stock', 'shop', 'all']) 
   console.log(`Measured ${machine.id} / ${loadout} / ${collection}`);
 }
 const purchases = [1, 2].map((version) => firstPurchase({ version, samples: 2000, seed }));
-const targets = [
+const targetCases = [
   ['yard', 'm_std', 'm_micro'], ['yard', 'm_std', 'm_rail'], ['alley', 'm_mini', 'm_spider'],
-  ['quarry', 'm_std', 'm_demo'], ['scrap', 'm_std', 'm_handler'], ['river', 'm_std', 'm_amph'], ['mine', 'm_std', 'm_mining'],
-].map(([siteId, machine, target]) => targetMachineTime({ siteId, machine, target, samples: 2000, seed }));
+  ['quarry', 'm_std', 'm_demo'], ['scrap', 'm_std', 'm_handler'], ['river', 'm_std', 'm_amph'], ['slope', 'm_mini', 'm_spider'], ['mine', 'm_std', 'm_mining'],
+];
+// Rules 1 and 2 share the drop tables; rules 3 adds the per-site new-machine guarantee.
+const targets = [1, 3].flatMap((version) => targetCases.map(([siteId, machine, target]) => targetMachineTime({ siteId, machine, target, version, samples: 2000, seed })));
 const waits = MACHINES.flatMap((m) => economySites().map((s) => machineWait(s.id, m.id)).filter(Boolean));
 const baseline = rows.filter((r) => r.machine === 'm_std' && r.loadout === 'stock');
 const report = { seed, samples, rowCount: rows.length, assumptions: {
@@ -47,7 +49,7 @@ const html = `<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta na
 <li>不存在一個工地在所有玩法、收藏來源與操作負擔上都最好；但成熟收藏的部分工地仍在純速率上被壓過（下列公開）。候選是可比較提案，並非已證明最終平衡。</li></ul></section>
 <section><h2>標準機／標配：起始收藏快照</h2><p>已解鎖全部等級；收藏只含免費與目前配置。每趟重新從同一收藏起點抽樣，不是玩家長期一直有新零件。</p>${compare('starter')}<h2>標準機／標配：全收藏快照</h2><p>所有零件重複折現，新零件及新機型率均為 0。這是成熟收藏壓力測試。</p>${compare('full')}</section>
 <section><h2>新手購買節奏</h2><p>2000 條動態路線：從 20 金幣、0 經驗起步，只跑廢料場；每趟維修至滿、及時領成長獎勵；收藏與重複折現會累積。不含桌面挖掘、停頓或其他購買。</p>${table(['方案','P50 分鐘','P90 分鐘','成功路線/樣本'],purchases.map((p)=>[p.version===1?'原版':'候選 A',f(p.p50Minutes),f(p.p90Minutes),`${p.completed}/${p.samples}`]))}<p>目標 20～35 分鐘（P50）是待驗收的節奏提案，不是保證每個玩家相同。</p></section>
-<section><h2>指定掉落機型的長尾</h2><p>每目標 2000 條動態路線；從能進入工地開始計算，保留其他先掉落機型並依正式規則移出池。兩方案的掉落表與概率完全相同。P90 意味仍約有 10% 更久，不是最晚時間。</p>${table(['目標機型','工地','使用機型','P50 小時','P90 小時','超過觀測窗'],targets.map((t)=>[names(t.target),names(t.siteId),names(t.machine),f(t.p50Hours),f(t.p90Hours),t.censored]))}</section>
+<section><h2>指定掉落機型的長尾</h2><p>每目標 2000 條動態路線；從能進入工地開始計算，保留其他先掉落機型並依正式規則移出池。兩方案的掉落表與概率完全相同。P90 意味仍約有 10% 更久，不是最晚時間。</p>${table(['目標機型','工地','使用機型','無保底 P50','無保底 P90','保底 P50','保底 P90','保底最差','超過觀測窗'],targets.filter((t)=>t.version===1).map((t)=>{const g=targets.find((x)=>x.version===3&&x.siteId===t.siteId&&x.target===t.target);return[names(t.target),names(t.siteId),names(t.machine),f(t.p50Hours),f(t.p90Hours),f(g.p50Hours),f(g.p90Hours),f(g.maxHours),t.censored+g.censored];}))}<p>0.9.0 新派遣（規則 3）加入每工地新機型保底：連續 N 趟未帶回新機型（N 為平均趟數），第 N 趟必得一台，按原權重挑選；不改單趟機率與權重。</p></section>
 <section><h2>純速率支配與保留差異</h2><p>同配置比較淨金幣、經驗、零件數、新機型的每小時速率；全部不低且至少一項高逾 2% 才列出。未計算獨有零件、單趟收入、少操作等偏好，不把抽樣相近值視為統計顯著。</p>${table(['方案','較優工地','被壓過工地'],scalarPairs.map((p)=>[p.version===1?'原版':'候選 A',names(p.better),names(p.worse)]))}<p>全收藏失去獨有掉落的目標價值後，短途頻繁操作仍可能更賺；長途保留較少操作與高單趟收入。若希望「全收藏也每個工地都等價」，需要另訂目標，而不是宣稱本輪已達成。</p></section>
 <section><h2>方法、限制與重建</h2><ul><li>實際 reducer 決定出發、固定亂數結算、獎勵、維修和購買；原版與候選使用同一亂數序列配對比較。</li><li>配置：標配、商店可取得的最高派遣倍率、全收藏最高派遣倍率。只最佳化 jobCoin，不聲稱是所有玩法最佳配裝。</li><li>每趟從滿耐久開始，維修費用為 ceil(磨損 × 0.3)。按批次維修可節省少量取整成本；免費休息會額外花時間，本表不把它當付費維修。</li><li>金幣淨值＝基礎＋大豐收＋裝備加成＋重複折現－維修。新零件、新機型無虛構售價；購買支出不混入每小時派遣收益。</li><li>有限樣本有誤差；本輪未涵蓋真人回訪間隔、數週養成、桌面挖掘與派遣混合策略。桌面挖掘收入可加速購買，不應將純派遣節奏當全玩法節奏。</li></ul><p>重建：<code>npm run balance:report</code>；完整資料 <a href="report.json">report.json</a>（含拆帳、所有情境、支配對及種子）。</p></section>
 <section><details><summary>所有機型與搭配：${rows.length} 個情境明細</summary>${table(['版本','機型','配置','收藏','工地','倍率','淨幣/h','XP/h','新零件/h','零件/h','新機型/h','最低單趟淨幣'],rows.map((r)=>[r.version,names(r.machine),r.loadout,r.collection,r.name,f(r.multiplier),f(r.hourly.net),f(r.hourly.xp),f(r.hourly.newParts),f(r.hourly.parts),r.hourly.machines.toFixed(3),r.minNet]))}</details></section></main></html>`;

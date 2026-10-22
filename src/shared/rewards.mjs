@@ -3,6 +3,7 @@ import { fitsMachine, partById } from './parts.mjs';
 import { num, withMood } from './util.mjs';
 import { ROLLS_NEEDED, jobMultiplier } from './jobs.mjs';
 import { economySite, duplicateRefund, economyVersion } from './economy.mjs';
+import { PITY_FROM_VERSION, pityLimit, unownedMachines } from './pity.mjs';
 
 const BASE_COINS = 4;
 // coin spread (2) + jackpot (1) + a chance/item pair for each of up to 3 drops (6) + a machine drop chance and pick (2)
@@ -73,29 +74,38 @@ export function claimJob(state, action) {
     else owned = [...owned, id];
     drops.push({ id, dup, coins: refund });
   });
-  // a whole machine may come back too, one the player does not own yet
-  const found = site.machineDrop;
-  if (found && rolls[9] < found.chance) {
-    const pool = found.pool.filter(([id]) => !owned.includes(id));
+  // a whole machine may come back too, one the player does not own yet;
+  // from rules 3 on, the Nth job in a row at a site without one is guaranteed to bring one
+  const pool = unownedMachines(site, owned);
+  const counted = version >= PITY_FROM_VERSION && pool.length > 0;
+  const before = counted ? job.pity ?? 0 : 0;
+  const natural = !!site.machineDrop && rolls[9] < site.machineDrop.chance;
+  const forced = counted && !natural && before + 1 >= pityLimit(site);
+  let gotMachine = false;
+  if ((natural || forced) && pool.length) {
     const total = pool.reduce((n, [, w]) => n + w, 0);
-    if (total > 0) {
-      let at = rolls[10] * total;
-      const [id] = pool.find(([, w]) => (at -= w) < 0) ?? pool[pool.length - 1];
-      owned = [...new Set([...owned, id, ...grantsOf(id)])];
-      drops.push({ id, dup: false });
-    }
+    let at = rolls[10] * total;
+    const [id] = pool.find(([, w]) => (at -= w) < 0) ?? pool[pool.length - 1];
+    owned = [...new Set([...owned, id, ...grantsOf(id)])];
+    drops.push({ id, dup: false, ...(forced ? { pity: true } : {}) });
+    gotMachine = true;
   }
-  const remaining = Math.max(version === 2 ? 0 : 1, state.durability - site.wear);
+  const after = gotMachine ? 0 : before + 1;
+  const machinePity = counted ? { ...state.machinePity, [site.id]: after } : state.machinePity;
+  if (counted && !after) delete machinePity[site.id];
+  const remaining = Math.max(version >= 2 ? 0 : 1, state.durability - site.wear);
   return withMood(
     {
       ...state,
       coins: state.coins + coins,
       owned,
+      machinePity,
       xp: state.xp + site.xp,
       durability: remaining,
       job: null,
       report: { jobId: job.id, machineId: job.machineId, site: site.id, coins, drops, jackpot, at: num(action.now), seen: false,
-        breakdown: { base, jackpotBonus, equipmentBonus, duplicates, xp: site.xp, wear: Math.max(0, state.durability - remaining) } },
+        breakdown: { base, jackpotBonus, equipmentBonus, duplicates, xp: site.xp, wear: Math.max(0, state.durability - remaining) },
+        ...(counted && !gotMachine ? { pity: { count: after, limit: pityLimit(site) } } : {}) },
     },
     8,
   );

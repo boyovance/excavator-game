@@ -8,6 +8,7 @@ import { HEX_COLOR, MOOD_FLOOR, NAME_MAX, clamp, num, withMood } from './util.mj
 import { normalizeJob } from './jobs.mjs';
 import { canVisitSite, claimGrowth } from './growth.mjs';
 import { economySite, economyVersion, departureDurability, CURRENT_ECONOMY_VERSION } from './economy.mjs';
+import { PITY_FROM_VERSION, pityProgress } from './pity.mjs';
 
 export { MILESTONES, companionDays } from './milestones.mjs';
 export { DEFAULT_STATE, normalize } from './normalize.mjs';
@@ -141,7 +142,8 @@ export function reduce(state, action, previewVersion = CURRENT_ECONOMY_VERSION) 
       if (!site || state.job || state.durability < departureDurability(site, version) || !canVisitSite(state, site)) return state;
       const now = num(action.now);
       return { ...state, job: normalizeJob({ id: action.id, site: site.id, rulesVersion: version, start: now, end: now + site.minutes * 60000,
-        equippedSnapshot: { ...state.equipped }, rolls: action.rolls }, state.equipped, state.owned) };
+        equippedSnapshot: { ...state.equipped }, rolls: action.rolls,
+        ...(version >= PITY_FROM_VERSION ? { pity: pityProgress(state, site.id)?.count ?? 0 } : {}) }, state.equipped, state.owned) };
     }
 
     case 'cancelJob':
