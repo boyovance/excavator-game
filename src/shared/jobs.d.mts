@@ -1,3 +1,12 @@
 export const RULES_VERSION: number;
 export const ROLLS_NEEDED: number;
 export function jobMultiplier(equipped: Record<string, string>): number;
+import type { GameState, Job } from './reducer.mjs';
+export const MAX_SLOTS: number;
+export const SLOT_PRICE: number;
+export const MAX_REPORTS: number;
+export function jobById(state: Pick<GameState, 'jobs'>, id: string): Job | null;
+export function desktopJob(state: Pick<GameState, 'jobs' | 'equipped'>): Job | null;
+export function machineBusy(state: Pick<GameState, 'jobs'>, machineId: string): boolean;
+export function siteBusy(state: Pick<GameState, 'jobs'>, siteId: string): boolean;
+export function reservedWear(state: Pick<GameState, 'jobs'>): number;

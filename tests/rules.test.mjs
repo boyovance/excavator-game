@@ -5,29 +5,29 @@ let s = normalize(null);
 const ok = (c, m) => console.log((c ? 'PASS ' : 'FAIL ') + m);
 
 s = reduce(s, { type: 'startJob', site: 'yard', now: 1000 });
-ok(s.job && s.job.end === 1000 + 5 * 60000, 'startJob sets end 5min later');
+ok(s.jobs[0] && s.jobs[0].end === 1000 + 5 * 60000, 'startJob sets end 5min later');
 ok(reduce(s, { type: 'startJob', site: 'mine', now: 5 }) === s, 'cannot start second job');
 ok(reduce(s, { type: 'claim', now: 2000, rolls: [0.5, 0, 0] }) === s, 'claim before end ignored');
 
 const R = (c1, c2, jp, d1, p1, d2 = 1, p2 = 0, d3 = 1, p3 = 0) => [c1, c2, jp, d1, p1, d2, p2, d3, p3, 0.99, 0];
 const done = claimWithRolls(s, { type: 'claim', now: 1000 + 5 * 60000, rolls: R(0.5, 0.5, 0.9, 0.1, 0) });
-ok(done.job === null && done.report && !done.report.seen, 'claim clears job and writes report');
-ok(done.coins === 20 + done.report.coins && done.report.coins >= 12 && done.report.coins <= 32, 'coins in range: ' + done.report.coins);
-ok(done.report.drops.length === 1 && done.report.drops[0].id === 'acc_beacon' && done.owned.includes('acc_beacon'), 'first loot entry dropped and owned');
+ok(done.jobs.length === 0 && done.reports[0] && !done.reports[0].seen, 'claim clears job and writes report');
+ok(done.coins === 20 + done.reports[0].coins && done.reports[0].coins >= 12 && done.reports[0].coins <= 32, 'coins in range: ' + done.reports[0].coins);
+ok(done.reports[0].drops.length === 1 && done.reports[0].drops[0].id === 'acc_beacon' && done.owned.includes('acc_beacon'), 'first loot entry dropped and owned');
 ok(done.durability === 92, 'wear applied: ' + done.durability);
 
 const low = claimWithRolls(s, { type: 'claim', now: 999999999, rolls: R(0, 0, 0.9, 1, 0) });
 const high = claimWithRolls(s, { type: 'claim', now: 999999999, rolls: R(0.999, 0.999, 0.9, 1, 0) });
-ok(low.report.coins === 12 && high.report.coins === 32, 'coin extremes hit the range ends: ' + low.report.coins + '/' + high.report.coins);
+ok(low.reports[0].coins === 12 && high.reports[0].coins === 32, 'coin extremes hit the range ends: ' + low.reports[0].coins + '/' + high.reports[0].coins);
 const jp = claimWithRolls(s, { type: 'claim', now: 999999999, rolls: R(0, 0, 0.0, 1, 0) });
-ok(jp.report.jackpot && jp.report.coins === 24, 'jackpot doubles coins');
+ok(jp.reports[0].jackpot && jp.reports[0].coins === 24, 'jackpot doubles coins');
 
 s = reduce(done, { type: 'startJob', site: 'yard', now: 0 });
 const dup = claimWithRolls(s, { type: 'claim', now: 999999999, rolls: R(0, 0, 0.9, 0.1, 0) });
-ok(dup.report.drops[0].dup && dup.report.coins === 12 + 12, 'duplicate converts to coins: ' + dup.report.coins);
+ok(dup.reports[0].drops[0].dup && dup.reports[0].coins === 12 + 12, 'duplicate converts to coins: ' + dup.reports[0].coins);
 
 const noDrop = claimWithRolls(s, { type: 'claim', now: 999999999, rolls: R(0, 0.5, 0.9, 0.99, 0.5) });
-ok(noDrop.report.drops.length === 0, 'no drop when roll >= chance');
+ok(noDrop.reports[0].drops.length === 0, 'no drop when roll >= chance');
 
 // longer jobs pay better: average coins per minute and expected part count rise with duration
 const avg = (id) => {
@@ -35,7 +35,7 @@ const avg = (id) => {
   const N = 4000;
   for (let i = 0; i < N; i++) {
     const st = reduce({ ...normalize(null), xp: 500 }, stamp({ type: 'startJob', site: id }, 0));
-    const r = reduce(st, stamp({ type: 'claim' }, 1e12)).report;
+    const r = reduce(st, stamp({ type: 'claim' }, 1e12)).reports[0];
     sum += r.coins;
     parts += r.drops.length;
   }
@@ -47,14 +47,14 @@ ok(y.parts < q.parts && q.parts < m.parts, 'longer site drops more parts: ' + [y
 ok(y.coins / 5 < m.coins / 120, 'mine pays more per minute than yard');
 
 const old = normalize({ report: { site: 'yard', coins: 5, drop: 'acc_beacon', dup: true, at: 1, seen: true } });
-ok(old.report.drops.length === 1 && old.report.drops[0].dup === true && old.report.jackpot === false, 'old single-drop report migrates');
+ok(old.reports[0].drops.length === 1 && old.reports[0].drops[0].dup === true && old.reports[0].jackpot === false, 'old single-drop report migrates');
 
 const base = normalize(null);
 ok(reduce(base, { type: 'buy', id: 'paint_gold' }).owned.length === base.owned.length, 'cannot buy work-only part');
 ok(reduce({ ...base, coins: 999 }, { type: 'buy', id: 'bucket_wide' }).equipped.bucket === 'bucket_wide', 'buy equips part');
-ok(reduce(done, { type: 'ackReport' }).report.seen === true, 'ackReport marks seen');
-ok(reduce({ ...base, durability: 0 }, { type: 'startJob', site: 'yard', now: 0 }).job === null, 'broken pet cannot start job');
-ok(reduce(s, { type: 'cancelJob' }).job === null && reduce(s, { type: 'cancelJob' }).report === s.report, 'cancel gives no report');
+ok(reduce(done, { type: 'ackReport' }).reports[0].seen === true, 'ackReport marks seen');
+ok(reduce({ ...base, durability: 0 }, { type: 'startJob', site: 'yard', now: 0 }).jobs.length === 0, 'broken pet cannot start job');
+ok(reduce(s, { type: 'cancelJob' }).jobs.length === 0 && reduce(s, { type: 'cancelJob' }).reports[0] === s.reports[0], 'cancel gives no report');
 const st = stamp({ type: 'startJob', now: 1, rolls: [9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9] });
 ok(st.now > 1000 && st.rolls.every((r) => r < 1), 'stamp overrides client time and rolls');
 ok(normalize({ coins: 'x', job: { site: 'nope' }, equipped: { paint: 'paint_gold' } }).equipped.paint === 'paint_yellow', 'normalize rejects unowned/invalid');

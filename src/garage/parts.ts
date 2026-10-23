@@ -85,7 +85,7 @@ function renderDetail() {
       }).join('')}</tbody></table>
       <p class="hint">${noChange ? '這次試裝的上述數值不變，可依外觀喜好選擇。' : '比較已含整機裝備；派遣實際金幣仍受工地與掉落影響。'}${state.durability < 30 ? ' 目前低耐久，行走倍率含 ×0.6 減速。' : ''}</p>
       ${p.machine ? '<p class="hint">已有機型會恢復上次搭配；尚未擁有的機型預覽標配。</p>' : ''}` : `<p class="catalog-warning">目前的${esc(name(state.equipped.machine))}不能使用此零件。請先切換適配機型；不會在錯誤機型上試裝。</p>`}
-    ${state.job ? '<p class="catalog-warning">正在派遣：本次換裝只改車庫配置，不改已出發工作的快照。</p>' : ''}
+    ${state.jobs.length ? '<p class="catalog-warning">正在派遣：本次換裝只改車庫配置，不改已出發工作的快照。</p>' : ''}
     `;
   $('part-detail-sources').innerHTML = `<h3>獲取來源</h3><ul class="part-sources">${sources.map((s) => `<li><div><b>${esc(s.name)}</b><small>${esc(s.note)}</small></div>${s.kind === 'site' ? `<button data-source-site="${s.id}" ${busy || !s.available ? 'disabled' : ''}>查看工地</button>` : s.kind === 'machine' ? `<button data-related-part="${s.id}" ${busy ? 'disabled' : ''}>查看機型</button>` : ''}</li>`).join('') || '<li>目前沒有可取得來源。</li>'}</ul><p class="hint">查看來源不會購買或自動派遣。工作中取得的重複零件仍按原規則折現。</p>`;
   const button = $<HTMLButtonElement>('part-apply');

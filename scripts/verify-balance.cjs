@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 const { pathToFileURL } = require('node:url');
-const { wait, requireIsolatedProfile, watchContents, makeUntil, makeShot } = require('./lib/harness.cjs');
+const { wait, requireIsolatedProfile, watchContents, makeUntil, makeShot, pageScript } = require('./lib/harness.cjs');
 const dir = requireIsolatedProfile('exc-balance-ui-');
 app.setPath('userData', dir);
 const demo = process.env.EXCAVATOR_BALANCE_DEMO === '1';
@@ -24,7 +24,7 @@ app.on('window-all-closed', () => app.quit());
   win.webContents.on('will-attach-webview', (event) => event.preventDefault());
   watchContents(win.webContents, errors);
   await win.loadURL(url);
-  const js = (code) => win.webContents.executeJavaScript(code);
+  const js = pageScript(() => win.webContents);
   await until(() => js('document.querySelector("#comparison-status").textContent.includes("比較完成")'));
   if (demo) { win.show(); win.focus(); console.log('Demo ready: compare original/candidate income, then simulate dispatch, repairs and purchases in the isolated sandbox.'); return; }
   const choose = async (id, value) => { await js(`document.querySelector('#${id}').value=${JSON.stringify(value)};document.querySelector('#${id}').dispatchEvent(new Event('change'))`); };

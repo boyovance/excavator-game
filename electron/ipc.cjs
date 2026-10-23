@@ -34,7 +34,7 @@ function registerIpc() {
   handle('get-settings', () => publicSettings());
   handle('get-state', () => ctx.gameState);
   handle('request-action', (_e, action) => {
-    if (!action || !['startJob', 'claim', 'cancelJob', 'buy', 'equip', 'claimGrowth'].includes(action.type)) return { ok: false, message: '無效的操作' };
+    if (!action || !['startJob', 'claim', 'cancelJob', 'buy', 'buySlot', 'equip', 'claimGrowth'].includes(action.type)) return { ok: false, message: '無效的操作' };
     return dispatch(action);
   });
   handle('get-packs', () => ctx.packs);

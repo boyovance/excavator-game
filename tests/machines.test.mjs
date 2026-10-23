@@ -88,10 +88,10 @@ for (const id of ['m_std', 'm_mini', 'm_spider', 'm_handler', 'm_mining', 'm_amp
   for (let i = 0; i < 40; i++) {
     for (const site of ['yard', 'quarry', 'mine']) {
       const started = reduce(st, { type: 'startJob', site, now: 0 });
-      if (!started.job) continue;
+      if (!started.jobs[0]) continue;
       const rolls = [0.5, 0.5, 0.99, 0, i / 40, 0, ((i * 7) % 40) / 40, 0, ((i * 13) % 40) / 40];
       const done = claimWithRolls(started, { type: 'claim', now: 1e12, rolls });
-      for (const d of done.report.drops) if (!fitsMachine(partById(d.id), id)) allFit = false;
+      for (const d of done.reports[0].drops) if (!fitsMachine(partById(d.id), id)) allFit = false;
     }
   }
   ok(allFit, id + ': every drop is a part it can use');
@@ -101,7 +101,7 @@ for (const id of ['m_std', 'm_mini', 'm_spider', 'm_handler', 'm_mining', 'm_amp
 import { SITES, siteById, siteOpenTo } from '../src/shared/parts.mjs';
 const startAs = (machine, site) => {
   const st = getMachine({ ...normalize(null), coins: 99999, xp: 500 }, machine);
-  return reduce(st, { type: 'startJob', site, now: 0 }).job !== null;
+  return reduce(st, { type: 'startJob', site, now: 0 }).jobs.length > 0;
 };
 ok(ids.every((m) => startAs(m, 'yard')), 'every machine can work the scrap yard');
 ok(!startAs('m_mini', 'quarry') && !startAs('m_spider', 'quarry') && startAs('m_mining', 'quarry') && startAs('m_wheeled', 'quarry'), 'small machines cannot work the quarry');
@@ -167,7 +167,7 @@ ok(machines.filter((m) => !m.workOnly).map((m) => m.id).join() === 'm_std,m_mini
   const started = reduce(st, { type: 'startJob', site: 'slope', now: 0 });
   const claim = (state, pick) => claimWithRolls(state, { type: 'claim', now: 1e12, rolls: [0.5, 0.5, 0.9, 1, 0, 1, 0, 1, 0, 0.0, pick] });
   const won = claim(started, 0.1);
-  const machineIn = (r) => r.report.drops.filter((d) => d.id.startsWith('m_'));
+  const machineIn = (r) => r.reports[0].drops.filter((d) => d.id.startsWith('m_'));
 ok(machineIn(won).length === 1 && machineIn(won)[0].id === 'm_spider' && !machineIn(won)[0].dup, 'a machine roll under the site chance brings a machine back');
   ok(won.owned.includes('m_spider') && won.owned.includes('tracks_spider') && won.owned.includes('bucket_spider'), 'a machine drop is kept and brings its own parts');
   const none = claimWithRolls(started, { type: 'claim', now: 1e12, rolls: [0.5, 0.5, 0.9, 1, 0, 1, 0, 1, 0, 0.5, 0.1] });
@@ -177,7 +177,7 @@ ok(machineIn(won).length === 1 && machineIn(won)[0].id === 'm_spider' && !machin
   const all = claim({ ...started, owned: [...won.owned, 'm_micro'] }, 0.1);
   ok(machineIn(all).length === 0, 'with every machine in the pool owned, no machine is picked');
   const four = claimWithRolls(started, { type: 'claim', now: 1e12, rolls: [0.5, 0.5, 0.9, 0, 0.1, 0, 0.1, 0, 0.1, 0.0, 0.1] });
-  ok(four.report.drops.length === 4 && four.report.drops[3].id.startsWith('m_'), 'a report can hold three parts and a machine');
+  ok(four.reports[0].drops.length === 4 && four.reports[0].drops[3].id.startsWith('m_'), 'a report can hold three parts and a machine');
 }
 // odds per job stay modest
 {

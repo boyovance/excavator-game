@@ -1,12 +1,12 @@
-import { TINT_SLOTS, fitsMachine, partById } from './parts.mjs';
+import { TINT_SLOTS, fitsMachine, partById, siteOpenTo } from './parts.mjs';
 import { grantsOf, switchMachine } from './machine.mjs';
 import { DAY_MS, MILESTONES, companionDays, localDate, startOfDay } from './milestones.mjs';
 import { DEFAULT_STATE, normalize } from './normalize.mjs';
 import { repairCost } from './info.mjs';
 import { claimJob, digCoins } from './rewards.mjs';
 import { HEX_COLOR, MOOD_FLOOR, NAME_MAX, clamp, num, withMood } from './util.mjs';
-import { normalizeJob } from './jobs.mjs';
-import { canVisitSite, claimGrowth } from './growth.mjs';
+import { MAX_SLOTS, SLOT_PRICE, machineBusy, normalizeJob, reservedWear, siteBusy } from './jobs.mjs';
+import { claimGrowth, siteUnlocked } from './growth.mjs';
 import { economySite, economyVersion, departureDurability, CURRENT_ECONOMY_VERSION } from './economy.mjs';
 import { PITY_FROM_VERSION, pityProgress } from './pity.mjs';
 
@@ -139,21 +139,37 @@ export function reduce(state, action, previewVersion = CURRENT_ECONOMY_VERSION) 
     case 'startJob': {
       const version = economyVersion(previewVersion);
       const site = economySite(action.site, version);
-      if (!site || state.job || state.durability < departureDurability(site, version) || !canVisitSite(state, site)) return state;
+      // any owned machine that is not already out; the desktop machine when none is named
+      const machine = action.machine ?? state.equipped.machine;
+      if (!site || partById(machine)?.slot !== 'machine' || !state.owned.includes(machine)) return state;
+      if (state.jobs.length >= state.jobSlots || machineBusy(state, machine) || siteBusy(state, site.id)) return state;
+      if (!siteUnlocked(state, site.id) || !siteOpenTo(site, machine)) return state;
+      // durability is shared, so wear already promised to jobs still out is set aside first
+      if (state.durability - reservedWear(state) < departureDurability(site, version)) return state;
       const now = num(action.now);
-      return { ...state, job: normalizeJob({ id: action.id, site: site.id, rulesVersion: version, start: now, end: now + site.minutes * 60000,
-        equippedSnapshot: { ...state.equipped }, rolls: action.rolls,
-        ...(version >= PITY_FROM_VERSION ? { pity: pityProgress(state, site.id)?.count ?? 0 } : {}) }, state.equipped, state.owned) };
+      const loadout = machine === state.equipped.machine ? state.equipped : switchMachine(state, machine).equipped;
+      // the desktop pet goes along only with the machine it shows, and only one job at a time
+      const desktop = machine === state.equipped.machine && !state.jobs.some((j) => j.desktop);
+      const job = normalizeJob({ id: action.id, site: site.id, rulesVersion: version, start: now, end: now + site.minutes * 60000,
+        equippedSnapshot: { ...loadout }, rolls: action.rolls, desktop,
+        ...(version >= PITY_FROM_VERSION ? { pity: pityProgress(state, site.id)?.count ?? 0 } : {}) }, state.equipped, state.owned);
+      return job && !state.jobs.some((j) => j.id === job.id) ? { ...state, jobs: [...state.jobs, job] } : state;
     }
 
-    case 'cancelJob':
-      return state.job && num(action.now) < state.job.end && (!action.jobId || action.jobId === state.job.id) ? { ...state, job: null } : state;
+    case 'cancelJob': {
+      const job = action.jobId ? state.jobs.find((j) => j.id === action.jobId) : state.jobs[0];
+      return job && num(action.now) < job.end ? { ...state, jobs: state.jobs.filter((j) => j !== job) } : state;
+    }
+
+    case 'buySlot':
+      if (state.jobSlots >= MAX_SLOTS || state.coins < SLOT_PRICE) return state;
+      return withMood({ ...state, coins: state.coins - SLOT_PRICE, jobSlots: state.jobSlots + 1 }, 5);
 
     case 'claim':
       return claimJob(state, action);
 
     case 'ackReport':
-      return state.report && !state.report.seen ? { ...state, report: { ...state.report, seen: true } } : state;
+      return state.reports.some((r) => !r.seen) ? { ...state, reports: state.reports.map((r) => (r.seen ? r : { ...r, seen: true })) } : state;
 
     default:
       return state;

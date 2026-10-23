@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 const { bannerScript } = require('./demo-banner.cjs');
-const { wait, requireIsolatedProfile, watchContents, makeUntil, makeShot, adminReplace } = require('./lib/harness.cjs');
+const { wait, requireIsolatedProfile, watchContents, makeUntil, makeShot, adminReplace, pageScript } = require('./lib/harness.cjs');
 const dir = requireIsolatedProfile('exc-release-');
 const root = process.env.EXCAVATOR_TEST_ROOT;
 const version = require(path.join(root, 'package.json')).version;
@@ -39,7 +39,7 @@ let g;
   openGarage(phase === 'new' || demo ? 'welcome' : 'garage');
   await until(() => ctx.garageWin && !ctx.garageWin.webContents.isLoading());
   g = ctx.garageWin.webContents;
-  const js = (code) => g.executeJavaScript(code);
+  const js = pageScript(() => g);
   const click = (selector) => js(`document.querySelector(${JSON.stringify(selector)}).click()`);
   await until(() => js('document.querySelector("#skin").options.length >= 3'));
   const shot = makeShot(() => g, output, { prefix: `${phase}-` });
@@ -73,14 +73,14 @@ let g;
     for (let i = 0; i < 10 && ctx.gameState.coins < 150; i++) {
       await click('[data-site=yard]');
       assert(await js('document.querySelector("#job-confirm-body").textContent.includes("12–32")'));
-      await click('#job-depart'); await until(() => !!ctx.gameState.job);
-      assert.equal(ctx.gameState.job.rulesVersion, 4);
+      await click('#job-depart'); await until(() => !!ctx.gameState.jobs[0]);
+      assert.equal(ctx.gameState.jobs[0].rulesVersion, 4);
       const current = ctx.gameState;
-      await replace({ ...current, job: { ...current.job, start: Date.now() - 301000, end: Date.now() - 1000,
-        rolls: [0.5, 0.5, 0.99, 0.99, 0, 0.99, 0, 0.99, 0, 0.99, 0] } });
+      await replace({ ...current, jobs: [{ ...current.jobs[0], start: Date.now() - 301000, end: Date.now() - 1000,
+        rolls: [0.5, 0.5, 0.99, 0.99, 0, 0.99, 0, 0.99, 0, 0.99, 0] }] });
       await until(() => js('!!document.querySelector("[data-job=claim]")'));
-      await click('[data-job=claim]'); await until(() => !ctx.gameState.job);
-      assert.equal(ctx.gameState.report.breakdown.base, 22);
+      await click('[data-job=claim]'); await until(() => !ctx.gameState.jobs[0]);
+      assert.equal(ctx.gameState.reports[0].breakdown.base, 22);
       await closeResult();
       for (const id of ['level-2', 'level-3']) {
         const result = await request({ type: 'claimGrowth', id });
@@ -107,7 +107,7 @@ let g;
     await click('[data-site=yard]');
     await replace({ ...ctx.gameState, durability: 7 });
     await click('#job-depart');
-    assert.equal(ctx.gameState.job, null);
+    assert.equal(ctx.gameState.jobs.length, 0);
     assert(await js('document.querySelector("#job-confirm-error").textContent.includes("耐久已不足")'));
     await click('#job-back');
     ctx.garageWin.setContentSize(380, 760); await js('window.scrollTo(0,0)');
@@ -130,28 +130,32 @@ let g;
     // Seed a genuine v1 job for the next process to migrate/settle.
     const legacy = ctx.rules.reduce({ ...ctx.rules.normalize(null), coins: 137, durability: 1 },
       { type: 'startJob', site: 'yard', id: 'release-legacy', now: Date.now() - 301000, rolls: Array(11).fill(0.99) }, 1);
-    await replace(legacy); write('expected.json', { job: legacy.job, coins: legacy.coins });
+    // written in the pre-slot save shape (single job, schema 4) so the next process also migrates the layout
+    const [legacyJob] = legacy.jobs;
+    await replace({ ...legacy, schemaVersion: 4, jobs: undefined, reports: undefined, job: legacyJob, report: null });
+    assert.deepEqual(ctx.gameState.jobs, [legacyJob]);
+    write('expected.json', { job: legacyJob, coins: legacy.coins });
     await js('window.api.setSettings({onboarding:"done",scale:2,notify:false})');
     await until(() => ctx.settings.scale === 2);
     console.log('PASS Release new player: welcome, real v2 dispatch, growth, purchase, free recovery, narrow UI, export/reset/import and invalid import');
   } else {
     const expected = read('expected.json');
-    assert.deepEqual(ctx.gameState.job, expected.job); assert.equal(ctx.gameState.coins, expected.coins);
+    assert.deepEqual(ctx.gameState.jobs[0], expected.job); assert.equal(ctx.gameState.coins, expected.coins);
     assert.equal(ctx.settings.scale, 2); assert.equal(ctx.settings.onboarding, 'done');
     if (phase === 'legacy') {
       assert(await js('document.querySelector("#jobs").textContent.includes("保留原版")'));
       assert((await request({ type: 'claim', jobId: expected.job.id })).ok);
-      assert.equal(ctx.gameState.report.breakdown.base, 30); assert.equal(ctx.gameState.durability, 1);
+      assert.equal(ctx.gameState.reports[0].breakdown.base, 30); assert.equal(ctx.gameState.durability, 1);
       const seed = ctx.rules.reduce({ ...ctx.rules.normalize(null), durability: 8, coins: 100 },
         { type: 'startJob', site: 'yard', id: 'release-current', now: Date.now() - 301000, rolls: Array(11).fill(0.99) });
-      assert.equal(seed.job.rulesVersion, 4);
-      await replace(seed); write('expected.json', { job: seed.job, coins: seed.coins });
+      assert.equal(seed.jobs[0].rulesVersion, 4);
+      await replace(seed); write('expected.json', { job: seed.jobs[0], coins: seed.coins });
       console.log('PASS Release migration: legacy job, original reward/durability, settings and exact saved dice survive process restart');
     } else {
       assert.equal(expected.job.rulesVersion, 4);
       assert((await request({ type: 'claim', jobId: expected.job.id })).ok);
       const coins = ctx.gameState.coins;
-      assert.equal(ctx.gameState.report.breakdown.base, 32); assert.equal(ctx.gameState.durability, 0);
+      assert.equal(ctx.gameState.reports[0].breakdown.base, 32); assert.equal(ctx.gameState.durability, 0);
       assert((await request({ type: 'claim', jobId: expected.job.id })).ok); assert.equal(ctx.gameState.coins, coins);
       assert(await js('document.querySelector("[data-site=yard]").disabled'));
       await js('document.querySelector("#jobs").scrollIntoView()'); await shot('v2-result');

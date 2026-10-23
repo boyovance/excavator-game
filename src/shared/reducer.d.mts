@@ -4,6 +4,8 @@ export interface Job {
   equippedSnapshot: Record<string, string>;
   rulesVersion: number;
   rolls: number[];
+  /** the desktop pet works (or leaves) along with this job */
+  desktop: boolean;
   /** rules 3+: the site's new-machine guarantee count when the job left */
   pity?: number;
   site: string;
@@ -22,6 +24,8 @@ export interface Drop {
 
 export interface Report {
   jobId?: string;
+  /** came from the job the desktop pet went along with */
+  desktop: boolean;
   machineId?: string;
   breakdown?: { base: number; jackpotBonus: number; equipmentBonus: number; duplicates: number; xp: number; wear: number };
   /** rules 3+ jobs that brought no new machine: guarantee progress after this job */
@@ -63,8 +67,12 @@ export interface GameState {
   loadouts: Record<string, Record<string, string>>;
   /** custom colours per machine region ("#rrggbb"); a missing region keeps its default colour */
   tint: Record<string, string>;
-  job: Job | null;
-  report: Report | null;
+  /** how many jobs may be out at once (1, or 2 once bought) */
+  jobSlots: number;
+  /** jobs still out, in departure order */
+  jobs: Job[];
+  /** latest results, newest first */
+  reports: Report[];
 }
 
 /** Everything a client may ask for. The server decides amounts, time and dice. */
@@ -79,7 +87,8 @@ export type ClientAction =
   | { type: 'buy'; id: string }
   | { type: 'equip'; id: string }
   | { type: 'repair' }
-  | { type: 'startJob'; site: string }
+  | { type: 'startJob'; site: string; machine?: string }
+  | { type: 'buySlot' }
   | { type: 'cancelJob'; jobId: string }
   | { type: 'claim'; jobId: string }
   | { type: 'ackReport' }
@@ -99,7 +108,8 @@ export type Action =
   | { type: 'buy'; id: string }
   | { type: 'equip'; id: string }
   | { type: 'repair' }
-  | { type: 'startJob'; site: string; now?: number; id?: string; rolls?: number[] }
+  | { type: 'startJob'; site: string; machine?: string; now?: number; id?: string; rolls?: number[] }
+  | { type: 'buySlot' }
   | { type: 'cancelJob'; now?: number; jobId?: string }
   | { type: 'claim'; now?: number; jobId?: string }
   | { type: 'ackReport' }

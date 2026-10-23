@@ -1,4 +1,5 @@
-import type { GameState, Report } from '../shared/reducer.mjs';
+import type { GameState, Job, Report } from '../shared/reducer.mjs';
+import { desktopJob } from '../shared/jobs.mjs';
 import type { State } from './constants';
 
 interface JobHost {
@@ -12,7 +13,7 @@ interface JobHost {
   clear(): void;
   claimed(report: Report): void;
   recalled(): void;
-  started(job: NonNullable<GameState['job']>): void;
+  started(job: Job): void;
 }
 
 /** Presentation only: a finished job never claims itself or changes the saved balance. */
@@ -22,15 +23,16 @@ export class JobController {
 
   changed(prev: GameState, next: GameState) {
     const h = this.host;
-    if (next.job && next.job.id !== prev.job?.id) {
+    // only the job the desktop pet went along with moves it; other slots stay in the garage
+    const before = desktopJob(prev);
+    const after = desktopJob(next);
+    if (after && after.id !== before?.id) {
       h.clear();
-      h.started(next.job);
-      this.resume(next.job, true);
-    } else if (prev.job && !next.job) {
+      h.started(after);
+      this.resume(after, true);
+    } else if (before && !after) {
       h.clear();
-      const report = next.report && !next.report.seen &&
-        (next.report.jobId === prev.job.id || (!next.report.jobId && next.report.at !== prev.report?.at))
-        ? next.report : null;
+      const report = next.reports.find((r) => !r.seen && r.jobId === before.id) ?? null;
       if (h.visible() && !['leave', 'away', 'return'].includes(h.state())) {
         if (report) h.claimed(report);
         else h.recalled();
@@ -38,7 +40,7 @@ export class JobController {
     }
   }
 
-  resume(job: GameState['job'], force = false, now = Date.now()) {
+  resume(job: Job | null, force = false, now = Date.now()) {
     if (!job) return;
     const h = this.host;
     const state = h.state();

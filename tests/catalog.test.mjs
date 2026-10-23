@@ -83,7 +83,7 @@ test('comparisons use real rounded coins, snapshot multipliers and low-durabilit
 });
 test('equipment changes preserve active dispatch snapshot and dice', () => {
   const s = reduce(base, { type: 'startJob', site: 'yard', now: 1000 });
-  assert.deepEqual(reduce(s, { type: 'buy', id: 'stick_long' }).job, s.job);
+  assert.deepEqual(reduce(s, { type: 'buy', id: 'stick_long' }).jobs[0], s.jobs[0]);
 });
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'exc-catalog-'));

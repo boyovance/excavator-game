@@ -1,10 +1,22 @@
 import { DEFAULT_EQUIPPED, partById, siteById } from './parts.mjs';
 import { loadoutFor } from './machine.mjs';
-import { economyVersion, CURRENT_ECONOMY_VERSION } from './economy.mjs';
+import { economySite, economyVersion, CURRENT_ECONOMY_VERSION } from './economy.mjs';
 import { PITY_FROM_VERSION, pityLimit } from './pity.mjs';
 
 export const RULES_VERSION = CURRENT_ECONOMY_VERSION;
 export const ROLLS_NEEDED = 11;
+export const MAX_SLOTS = 2;
+export const SLOT_PRICE = 1000;
+/** Results kept for the garage: the latest few, newest first. */
+export const MAX_REPORTS = MAX_SLOTS;
+
+export const jobById = (state, id) => state.jobs.find((j) => j.id === id) ?? null;
+/** The job the desktop pet takes part in: the one that left with the machine then on the desktop. */
+export const desktopJob = (state) => state.jobs.find((j) => j.desktop) ?? null;
+export const machineBusy = (state, machineId) => state.jobs.some((j) => j.machineId === machineId);
+export const siteBusy = (state, siteId) => state.jobs.some((j) => j.site === siteId);
+/** Durability already promised to jobs still out; wear is only taken when each is claimed. */
+export const reservedWear = (state) => state.jobs.reduce((n, j) => n + (economySite(j.site, j.rulesVersion)?.wear ?? 0), 0);
 export const jobMultiplier = (equipped) => Object.values(equipped).reduce((n, id) => n * (partById(id)?.stats?.jobCoin ?? 1), 1);
 
 // Stable migration for old saves: reading/retrying the same job must not reroll its reward.
@@ -35,7 +47,7 @@ export function normalizeJob(raw, equipped, owned) {
   const rolls = Array.isArray(raw.rolls) && raw.rolls.length === ROLLS_NEEDED && raw.rolls.every((r) => Number.isFinite(r) && r >= 0 && r < 1)
     ? [...raw.rolls] : legacyRolls(id);
   const rulesVersion = economyVersion(raw.rulesVersion);
-  const job = { id, site: raw.site, start: raw.start, end: raw.end, machineId, equippedSnapshot: snapshot, rulesVersion, rolls };
+  const job = { id, site: raw.site, start: raw.start, end: raw.end, machineId, equippedSnapshot: snapshot, rulesVersion, rolls, desktop: raw.desktop === true };
   if (rulesVersion >= PITY_FROM_VERSION) {
     const limit = pityLimit(siteById(raw.site));
     const n = Math.floor(Number(raw.pity));

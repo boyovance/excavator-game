@@ -42,11 +42,12 @@ export function renderStatus() {
   const repair = $<HTMLButtonElement>('repair');
   repair.textContent = cost > 0 ? `維修(${cost} 金幣)` : '狀態良好';
   repair.disabled = cost <= 0 || state.coins < cost;
-  if (state.durability >= 15 || state.job) stopRest();
+  if (state.durability >= 15) stopRest();
   const rest = $<HTMLButtonElement>('free-rest');
-  rest.disabled = state.durability >= 15 || !!state.job;
+  rest.disabled = state.durability >= 15;
   rest.textContent = restTimer !== null ? '休息中 · 點此停止' : '免費休息至 15 耐久';
-  $('rest-note').textContent = state.job ? '派遣結束後可休息。' : restTimer !== null
+  // with several slots something is nearly always out, so resting no longer waits for jobs
+  $('rest-note').textContent = restTimer !== null
     ? '每 3 秒恢復 1 點；可見車庫保持開啟才持續，不花金幣。'
     : '低於 15 耐久時可免費休息，再跑廢料場賺取維修費。';
 }
@@ -60,9 +61,9 @@ function saveName() {
 export function bindPet() {
   $('free-rest').addEventListener('click', () => {
     if (restTimer !== null) stopRest();
-    else if (ui.state.durability < 15 && !ui.state.job) {
+    else if (ui.state.durability < 15) {
       restTimer = setInterval(() => {
-        if (document.hidden || ui.state.job || ui.state.durability >= 15) { stopRest(); renderStatus(); return; }
+        if (document.hidden || ui.state.durability >= 15) { stopRest(); renderStatus(); return; }
         api.dispatch({ type: 'rest' });
       }, 3000);
     }

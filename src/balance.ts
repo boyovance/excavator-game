@@ -85,7 +85,7 @@ button('trial-trip').addEventListener('click', () => {
   const result = simulateTrip(state, select('trial-site').value, version, random, 1000 + minutes * 60000, `trial-${history.length}`);
   if (!result.accepted) { log('出發條件不足，未變更進度。'); return; }
   state = result.state; minutes += result.minutes;
-  const r = state.report!; const b = r.breakdown!;
+  const r = state.reports[0]; const b = r.breakdown!;
   report = `本趟已入帳 ${r.coins} 金幣＝基礎 ${b.base}＋大豐收 ${b.jackpotBonus}＋裝備 ${b.equipmentBonus}＋重複折現 ${b.duplicates}。經驗 +${b.xp}，實際磨損 ${b.wear}。${r.drops.map((d) => `${partName(d.id)}（${d.dup ? '重複折現' : '新收藏'}）`).join('、') || '本趟沒有零件'}。維修尚未扣款。`;
   log(`完成 ${economySite(r.site, version)!.name}，收入 ${r.coins} 金幣；可繼續派遣或自行維修。`);
 });

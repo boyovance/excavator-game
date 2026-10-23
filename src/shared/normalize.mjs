@@ -2,7 +2,7 @@ import { DEFAULT_EQUIPPED, MACHINE_SLOTS, PARTS, TINT_SLOTS, partById, siteById 
 import { grantsOf, loadoutFor } from './machine.mjs';
 import { DATE_RE } from './milestones.mjs';
 import { HEX_COLOR, MOOD_FLOOR, NAME_MAX, clamp, num } from './util.mjs';
-import { normalizeJob } from './jobs.mjs';
+import { MAX_REPORTS, MAX_SLOTS, normalizeJob } from './jobs.mjs';
 import { GROWTH_STAGES, LEGACY_SITES } from './growth.mjs';
 import { normalizeMachinePity, pityLimit } from './pity.mjs';
 
@@ -20,7 +20,9 @@ const cleanTint = (raw) => {
 const FREE_IDS = PARTS.filter((p) => p.price === 0).map((p) => p.id);
 
 export const DEFAULT_STATE = {
-  schemaVersion: 4,
+  schemaVersion: 5,
+  /** how many jobs may be out at once; the second slot is bought in the garage */
+  jobSlots: 1,
   growthClaimed: [],
   legacySites: [],
   /** per site: jobs in a row (rules 3+) that brought no new machine */
@@ -44,9 +46,39 @@ export const DEFAULT_STATE = {
   loadouts: {},
   /** custom colours per machine region, "#rrggbb"; a missing region keeps its default colour */
   tint: {},
-  job: null,
-  report: null,
+  /** jobs still out, in departure order */
+  jobs: [],
+  /** latest results, newest first */
+  reports: [],
 };
+
+function normalizeReport(r) {
+  // older saves stored a single `drop` / `dup`; newer ones store a list of drops
+  const drops =
+    r && Array.isArray(r.drops)
+      ? r.drops.filter((d) => d && partById(d.id)).slice(0, 4).map((d) => ({ id: d.id, dup: !!d.dup, ...(Number.isFinite(d.coins) ? { coins: Math.max(0, d.coins) } : {}),
+        ...(d.pity === true && partById(d.id).slot === 'machine' ? { pity: true } : {}) }))
+      : r && partById(r.drop)
+        ? [{ id: r.drop, dup: !!r.dup }]
+        : [];
+  return r && siteById(r.site)
+      ? {
+          site: r.site,
+          coins: Math.max(0, Math.floor(num(r.coins))),
+          drops,
+          jackpot: !!r.jackpot,
+          at: num(r.at),
+          seen: !!r.seen,
+          desktop: r.desktop !== false,
+          jobId: typeof r.jobId === 'string' ? r.jobId.slice(0, 128) : undefined,
+          machineId: partById(r.machineId)?.slot === 'machine' ? r.machineId : undefined,
+          breakdown: r.breakdown && typeof r.breakdown === 'object'
+            ? Object.fromEntries(['base', 'jackpotBonus', 'equipmentBonus', 'duplicates', 'xp', 'wear'].map((key) => [key, num(r.breakdown[key])])) : undefined,
+          ...(r.pity && typeof r.pity === 'object' && pityLimit(siteById(r.site))
+            ? { pity: { limit: pityLimit(siteById(r.site)), count: clamp(Math.floor(num(r.pity.count)), 0, pityLimit(siteById(r.site)) - 1) } } : {}),
+        }
+      : null;
+}
 
 export function normalize(raw) {
   const s = raw && typeof raw === 'object' ? raw : {};
@@ -74,36 +106,25 @@ export function normalize(raw) {
       if (id !== machine && owned.has(id) && partById(id)?.slot === 'machine') loadouts[id] = loadoutFor(id, ownedList, parts);
     }
   }
-  const job = normalizeJob(s.job, equipped, ownedList);
-  const r = s.report;
-  // older saves stored a single `drop` / `dup`; newer ones store a list of drops
-  const drops =
-    r && Array.isArray(r.drops)
-      ? r.drops.filter((d) => d && partById(d.id)).slice(0, 4).map((d) => ({ id: d.id, dup: !!d.dup, ...(Number.isFinite(d.coins) ? { coins: Math.max(0, d.coins) } : {}),
-        ...(d.pity === true && partById(d.id).slot === 'machine' ? { pity: true } : {}) }))
-      : r && partById(r.drop)
-        ? [{ id: r.drop, dup: !!r.dup }]
-        : [];
-  const report =
-    r && siteById(r.site)
-      ? {
-          site: r.site,
-          coins: Math.max(0, Math.floor(num(r.coins))),
-          drops,
-          jackpot: !!r.jackpot,
-          at: num(r.at),
-          seen: !!r.seen,
-          jobId: typeof r.jobId === 'string' ? r.jobId.slice(0, 128) : undefined,
-          machineId: partById(r.machineId)?.slot === 'machine' ? r.machineId : undefined,
-          breakdown: r.breakdown && typeof r.breakdown === 'object'
-            ? Object.fromEntries(['base', 'jackpotBonus', 'equipmentBonus', 'duplicates', 'xp', 'wear'].map((key) => [key, num(r.breakdown[key])])) : undefined,
-          ...(r.pity && typeof r.pity === 'object' && pityLimit(siteById(r.site))
-            ? { pity: { limit: pityLimit(siteById(r.site)), count: clamp(Math.floor(num(r.pity.count)), 0, pityLimit(siteById(r.site)) - 1) } } : {}),
-        }
-      : null;
+  // older saves held a single job and a single report
+  // a single job from before slots always ran on the desktop
+  const rawJobs = Array.isArray(s.jobs) ? s.jobs : s.job ? [{ ...s.job, desktop: true }] : [];
+  const jobSlots = Math.floor(num(s.jobSlots)) >= MAX_SLOTS ? MAX_SLOTS : 1;
+  const jobs = [];
+  for (const raw of rawJobs) {
+    if (jobs.length >= jobSlots) break;
+    const job = normalizeJob(raw, equipped, ownedList);
+    // one job per machine, per site and per id; anything else could pay or count twice
+    if (job && !jobs.some((j) => j.id === job.id || j.machineId === job.machineId || j.site === job.site)) {
+      jobs.push(jobs.some((j) => j.desktop) ? { ...job, desktop: false } : job);
+    }
+  }
+  const rawReports = Array.isArray(s.reports) ? s.reports : s.report ? [s.report] : [];
+  const reports = rawReports.map(normalizeReport).filter((r, i, all) => r && (!r.jobId || all.findIndex((o) => o?.jobId === r.jobId) === i)).slice(0, MAX_REPORTS);
   const name = typeof s.name === 'string' ? s.name.trim().slice(0, NAME_MAX) : '';
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
+    jobSlots,
     growthClaimed: [...new Set(Array.isArray(s.growthClaimed) ? s.growthClaimed.filter((id) => GROWTH_STAGES.some((g) => g.id === id)) : [])],
     legacySites: Object.keys(s).length && num(s.schemaVersion) < 3 ? [...LEGACY_SITES]
       : [...new Set(Array.isArray(s.legacySites) ? s.legacySites.filter((id) => LEGACY_SITES.includes(id)) : [])],
@@ -122,7 +143,7 @@ export function normalize(raw) {
     equipped,
     loadouts,
     tint: cleanTint(s.tint),
-    job,
-    report,
+    jobs,
+    reports,
   };
 }

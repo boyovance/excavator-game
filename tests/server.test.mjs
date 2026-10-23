@@ -54,14 +54,14 @@ await post({ type: 'rest', amount: 50 });
 ok((await state()).durability === before - 1, 'rest ignored while not broken');
 
 await post({ type: 'startJob', site: 'yard' });
-const jobId = (await state()).job.id;
+const jobId = (await state()).jobs[0].id;
 await post({ type: 'claim', jobId });
-ok((await state()).job !== null, 'early claim ignored (server clock)');
+ok((await state()).jobs[0] !== null, 'early claim ignored (server clock)');
 t += 5 * 60_000 + 1000;
 await post({ type: 'claim', jobId });
 s = await state();
-ok(s.job === null && s.report && s.report.coins >= 10, 'claim after server time elapsed pays: ' + s.report?.coins);
-ok(typeof s.report.coins === 'number' && s.report.coins <= 60, 'coins roll decided by server in range (including jackpot)');
+ok(s.jobs.length === 0 && s.reports[0] && s.reports[0].coins >= 10, 'claim after server time elapsed pays: ' + s.reports[0]?.coins);
+ok(typeof s.reports[0].coins === 'number' && s.reports[0].coins <= 60, 'coins roll decided by server in range (including jackpot)');
 
 ok((await post({ type: 'rename', name: 'x'.repeat(500) })).status === 200 && (await state()).name.length === 12, 'long name truncated');
 
@@ -114,7 +114,7 @@ ok(!imported.owned.includes('nonexistent') && !('evil' in imported), 'import dro
 ok(new TextDecoder().decode((await pushed2).value).includes('"coins":777'), 'import is pushed to connected clients');
 ok((await state()).coins === 777, 'import is visible to later reads');
 const resetRes = await (await adminPost({ state: null })).json();
-ok(resetRes.coins === 20 && resetRes.xp === 0 && resetRes.owned.length > 5 && resetRes.job === null, 'reset gives a fresh state');
+ok(resetRes.coins === 20 && resetRes.xp === 0 && resetRes.owned.length > 5 && resetRes.jobs.length === 0, 'reset gives a fresh state');
 await post({ type: 'dig' });
 t += 1600;
 await post({ type: 'dig' });

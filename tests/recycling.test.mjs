@@ -9,7 +9,7 @@ const ROLLS = [0.5, 0.5, 0.99, 0, 0.3, 0, 0.7, 0.99, 0, 0.99, 0];
 const everything = normalize({ schemaVersion: 4, xp: 5000, coins: 1000, owned: PARTS.map((p) => p.id) });
 function claimAt(site, version, state = everything) {
   const started = reduce(state, { type: 'startJob', site, now: 1000, id: `r-${site}-${version}`, rolls: ROLLS }, version);
-  return reduce(started, { type: 'claim', jobId: started.job.id, now: started.job.end });
+  return reduce(started, { type: 'claim', jobId: started.jobs[0].id, now: started.jobs[0].end });
 }
 
 await test('only the scrap yard recycles at 50% (10-50) from rules 4 on', () => {
@@ -31,27 +31,27 @@ await test('only the scrap yard recycles at 50% (10-50) from rules 4 on', () => 
 await test('a rules 4 scrap job pays the higher refund for every duplicate', () => {
   const now = claimAt('scrap', 4);
   const before = claimAt('scrap', 3);
-  assert.equal(now.report.drops.length, 2);
-  assert.ok(now.report.drops.every((d) => d.dup && d.coins === duplicateRefund(d.id, 4, 'scrap')));
-  assert.deepEqual(now.report.drops.map((d) => d.id), before.report.drops.map((d) => d.id));
-  assert.equal(now.report.breakdown.duplicates, now.report.drops.reduce((n, d) => n + d.coins, 0));
-  assert.ok(now.report.breakdown.duplicates > before.report.breakdown.duplicates);
-  assert.equal(now.coins - before.coins, now.report.breakdown.duplicates - before.report.breakdown.duplicates);
-  assert.equal(now.report.breakdown.base, before.report.breakdown.base);
+  assert.equal(now.reports[0].drops.length, 2);
+  assert.ok(now.reports[0].drops.every((d) => d.dup && d.coins === duplicateRefund(d.id, 4, 'scrap')));
+  assert.deepEqual(now.reports[0].drops.map((d) => d.id), before.reports[0].drops.map((d) => d.id));
+  assert.equal(now.reports[0].breakdown.duplicates, now.reports[0].drops.reduce((n, d) => n + d.coins, 0));
+  assert.ok(now.reports[0].breakdown.duplicates > before.reports[0].breakdown.duplicates);
+  assert.equal(now.coins - before.coins, now.reports[0].breakdown.duplicates - before.reports[0].breakdown.duplicates);
+  assert.equal(now.reports[0].breakdown.base, before.reports[0].breakdown.base);
   assert.equal(now.xp, before.xp);
 });
 
 await test('other sites keep the standard refund under rules 4', () => {
   const quarry = claimAt('quarry', 4);
-  assert.ok(quarry.report.drops.every((d) => d.coins === duplicateRefund(d.id, 4, 'quarry')));
+  assert.ok(quarry.reports[0].drops.every((d) => d.coins === duplicateRefund(d.id, 4, 'quarry')));
 });
 
 await test('a scrap job that left under rules 3 still settles at 25% after the upgrade', () => {
   const started = reduce(everything, { type: 'startJob', site: 'scrap', now: 1000, id: 'old-scrap', rolls: ROLLS }, 3);
   const reloaded = normalize(JSON.parse(JSON.stringify(started)));
-  assert.equal(reloaded.job.rulesVersion, 3);
-  const done = reduce(reloaded, { type: 'claim', jobId: 'old-scrap', now: reloaded.job.end });
-  assert.ok(done.report.drops.every((d) => d.coins === duplicateRefund(d.id, 3, 'scrap')));
+  assert.equal(reloaded.jobs[0].rulesVersion, 3);
+  const done = reduce(reloaded, { type: 'claim', jobId: 'old-scrap', now: reloaded.jobs[0].end });
+  assert.ok(done.reports[0].drops.every((d) => d.coins === duplicateRefund(d.id, 3, 'scrap')));
 });
 
 await test('check-in dominance separates real gaps from short/long trade-offs', async () => {

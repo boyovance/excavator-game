@@ -1,5 +1,5 @@
 import type { Settings } from '../api';
-import type { GameState } from '../shared/reducer.mjs';
+import type { GameState, Job } from '../shared/reducer.mjs';
 import { WORK } from '../shared/lines.mjs';
 import { pick } from './constants';
 
@@ -18,7 +18,7 @@ export function tipText(onboarding: Settings['onboarding'], name: string): strin
 }
 
 /** An honest answer about the current job: how far along it is and how long is left. */
-export function busyLine(job: GameState['job']): string {
+export function busyLine(job: Job | null): string {
   if (!job) return pick(WORK.busyEarly);
   const total = Math.max(1, job.end - job.start);
   const left = Math.max(0, job.end - Date.now());

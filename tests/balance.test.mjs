@@ -10,37 +10,37 @@ import { startServer } from '../server/index.mjs';
 const test = (name, fn) => { fn(); console.log('PASS ' + name); };
 const base = normalize(null);
 const begin = (s = base, version = 1) => reduce(s, { type: 'startJob', site: 'yard', id: 'balance-test', now: 1000, rolls: Array(11).fill(0.5) }, version);
-const finish = (s, version = 1) => reduce(s, { type: 'claim', jobId: s.job.id, now: s.job.end }, version);
+const finish = (s, version = 1) => reduce(s, { type: 'claim', jobId: s.jobs[0].id, now: s.jobs[0].end }, version);
 test('original tables, ordinary departure and refund defaults remain unchanged', () => {
   assert.equal(economySites(1), SITES);
   assert.deepEqual(economySite('yard', 1).coins, [10, 30]);
   assert.deepEqual(economySite('yard', 2).coins, [12, 32]);
-  assert.equal(begin().job.rulesVersion, 1);
-  assert.equal(finish(begin()).report.breakdown.base, 20);
+  assert.equal(begin().jobs[0].rulesVersion, 1);
+  assert.equal(finish(begin()).reports[0].breakdown.base, 20);
   assert.equal(duplicateRefund('acc_beacon', 1), 25);
   assert.equal(duplicateRefund('acc_beacon', 2), 12);
 });
 test('accepted rules are the production default, never selected by a client property', () => {
   const a = reduce(base, { type: 'startJob', site: 'yard', now: 1000, rulesVersion: 2, previewVersion: 2 });
-  assert.equal(a.job.rulesVersion, CURRENT_ECONOMY_VERSION);
-  assert.equal(begin(base, 99).job.rulesVersion, 1);
-  assert.equal(begin(base, 2).job.rulesVersion, 2);
+  assert.equal(a.jobs[0].rulesVersion, CURRENT_ECONOMY_VERSION);
+  assert.equal(begin(base, 99).jobs[0].rulesVersion, 1);
+  assert.equal(begin(base, 2).jobs[0].rulesVersion, 2);
 });
 test('version captured at departure survives reload and opposite settlement context', () => {
   for (const version of [1, 2]) {
     const s = begin(base, version);
     const saved = normalize(JSON.parse(JSON.stringify(s)));
-    assert.deepEqual(saved.job, s.job);
-    assert.deepEqual(finish(saved, version === 1 ? 2 : 1).report, finish(s, version).report);
+    assert.deepEqual(saved.jobs[0], s.jobs[0]);
+    assert.deepEqual(finish(saved, version === 1 ? 2 : 1).reports[0], finish(s, version).reports[0]);
   }
   const s = begin();
-  assert.equal(normalize({ ...s, job: { ...s.job, rulesVersion: undefined } }).job.rulesVersion, 1);
-  assert.equal(normalize({ ...s, job: { ...s.job, rulesVersion: 99 } }).job.rulesVersion, 1);
+  assert.equal(normalize({ ...s, jobs: [{ ...s.jobs[0], rulesVersion: undefined }] }).jobs[0].rulesVersion, 1);
+  assert.equal(normalize({ ...s, jobs: [{ ...s.jobs[0], rulesVersion: 99 }] }).jobs[0].rulesVersion, 1);
 });
 test('candidate departure requires full wear budget and can reach zero; original keeps one', () => {
   const low = { ...base, durability: 7 };
   assert.equal(begin(low, 2), low);
-  assert(begin(low, 1).job);
+  assert(begin(low, 1).jobs[0]);
   assert.equal(finish(begin({ ...base, durability: 8 }, 2)).durability, 0);
   assert.equal(finish(begin({ ...base, durability: 1 }, 1)).durability, 1);
   assert.equal(maintenanceRun(1).completed, 20);
@@ -50,10 +50,10 @@ test('candidate refunds are capped and all per-trip accounting adds up without d
   for (const p of PARTS) assert(duplicateRefund(p.id, 2) >= 5 && duplicateRefund(p.id, 2) <= 25);
   for (const version of [1, 2]) {
     const s = begin(scenario('m_std', 'all', 'full'), version); const done = finish(s);
-    const b = done.report.breakdown;
-    assert.equal(b.base + b.jackpotBonus + b.equipmentBonus + b.duplicates, done.report.coins);
-    assert.equal(done.coins - s.coins, done.report.coins);
-    assert.equal(reduce(done, { type: 'claim', jobId: s.job.id, now: s.job.end }), done);
+    const b = done.reports[0].breakdown;
+    assert.equal(b.base + b.jackpotBonus + b.equipmentBonus + b.duplicates, done.reports[0].coins);
+    assert.equal(done.coins - s.coins, done.reports[0].coins);
+    assert.equal(reduce(done, { type: 'claim', jobId: s.jobs[0].id, now: s.jobs[0].end }), done);
   }
 });
 test('fixed seed simulation is repeatable, does not mutate tables and full collection has no new drops', () => {
@@ -109,6 +109,6 @@ try {
   server = await startServer({ dataDir: dir, token: 'balance-test' });
   const request = (action) => fetch(`http://127.0.0.1:${server.port}/dispatch`, { method: 'POST', headers: { Authorization: 'Bearer balance-test', 'Content-Type': 'application/json' }, body: JSON.stringify(action) });
   assert.equal((await request({ type: 'startJob', site: 'yard', rulesVersion: 1, previewVersion: 1 })).status, 200);
-  assert.equal(server.getState().job.rulesVersion, CURRENT_ECONOMY_VERSION);
+  assert.equal(server.getState().jobs[0].rulesVersion, CURRENT_ECONOMY_VERSION);
   console.log('PASS ordinary server ignores forged legacy version and uses accepted production rules');
 } finally { await server?.close(); fs.rmSync(dir, { recursive: true, force: true }); }

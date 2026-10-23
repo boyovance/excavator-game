@@ -63,21 +63,22 @@ assert.equal(resume, 1); assert.equal(broadcasts, 3); assert.equal(ctx.win.bound
 console.log('PASS Window handlers: display change broadcasts and resume re-placement/re-sync (synthetic events)');
 
 let now = 1000, currentTimer; const notices = [], opened = [];
-const state = { settings: { notify: true }, gameState: null, prefs: { isQuiet: (s) => !!s.quiet }, rules: { siteName: () => '工地' } };
+const state = { settings: { notify: true }, gameState: null, prefs: { isQuiet: (s) => !!s.quiet }, rules: { siteName: () => '工地', partName: () => '挖掘機' } };
 class Notice extends EventEmitter { constructor(options) { super(); this.options = options; } show() { notices.push(this); } static isSupported() { return true; } }
 const notify = moduleFrom('../electron/notifications.cjs', {
   electron: { Notification: Notice }, './context.cjs': state,
   './tray.cjs': { refreshMenus() {} }, './windows.cjs': { openGarage: (tab) => opened.push(tab) },
 }, { Date: { now: () => now }, setTimeout: (fn) => { currentTimer = { fn, unref() {} }; return currentTimer; }, clearTimeout: () => { currentTimer = null; } });
 const job = { id: 'notice-1', site: 'yard', end: 5000 };
-state.gameState = { job, coins: 20 }; notify.notifyReturn(null, state.gameState);
+state.gameState = { jobs: [job], coins: 20 }; notify.notifyReturn(null, state.gameState);
 now = 500; currentTimer.fn(); assert.equal(notices.length, 0);
 now = 6000; currentTimer.fn(); assert.equal(notices.length, 1); assert.equal(state.gameState.coins, 20);
 notices[0].emit('click'); assert.equal(opened[0], 'garage');
 notify.notifyReturn(null, state.gameState); assert.equal(notices.length, 1);
-state.settings.quiet = true; state.gameState.job = { ...job, id: 'quiet' };
+state.settings.quiet = true; state.gameState.jobs[0] = { ...job, id: 'quiet' };
 notify.notifyReturn(null, state.gameState); currentTimer.fn(); assert.equal(notices.length, 1);
-state.settings.quiet = false; state.settings.notify = false; state.gameState.job = { ...job, id: 'disabled' };
+state.settings.quiet = false; state.settings.notify = false; state.gameState.jobs[0] = { ...job, id: 'disabled' };
 notify.notifyReturn(null, state.gameState); currentTimer.fn(); assert.equal(notices.length, 1);
-state.gameState.job = null; notify.notifyReturn(null, state.gameState); assert.equal(currentTimer, null);
+state.gameState.jobs = [{ ...job, id: 'cancelled', end: now + 60_000 }]; notify.notifyReturn(null, state.gameState); assert.notEqual(currentTimer, null);
+state.gameState.jobs = []; notify.notifyReturn(null, state.gameState); assert.equal(currentTimer, null);
 console.log('PASS Notification handlers: clock reversal/jump, quiet/disabled, cancel and no payout (mocked native notification)');

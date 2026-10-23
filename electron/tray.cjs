@@ -8,11 +8,9 @@ const { openGarage } = require('./windows.cjs');
 function buildMenu() {
   const { rules, gameState, settings, skins } = ctx;
   const cost = rules.repairCost(gameState.durability);
-  const job = gameState.job;
-  const jobItems = job
-    ? [
+  const jobItems = gameState.jobs.flatMap((job) => [
         {
-          label: Date.now() >= job.end ? `工作完成：${rules.siteName(job.site)}，待領取` : `工作中:${rules.siteName(job.site)},剩餘 ${Math.max(0, Math.ceil((job.end - Date.now()) / 60000))} 分鐘`,
+          label: `${rules.partName(job.machineId)}・${Date.now() >= job.end ? `工作完成：${rules.siteName(job.site)}，待領取` : `工作中:${rules.siteName(job.site)},剩餘 ${Math.max(0, Math.ceil((job.end - Date.now()) / 60000))} 分鐘`}`,
           enabled: false,
         },
         Date.now() >= job.end
@@ -24,8 +22,7 @@ function buildMenu() {
                 if (!result.ok) await dialog.showMessageBox({ type: 'warning', message: result.message });
               }
             } },
-      ]
-    : [];
+      ]);
   return Menu.buildFromTemplate([
     {
       label: `${gameState.name} Lv.${rules.levelInfo(gameState.xp).level}　陪伴 ${rules.companionDays(gameState)} 天　金幣:${gameState.coins}　耐久:${Math.round(gameState.durability)}%`,

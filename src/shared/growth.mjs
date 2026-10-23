@@ -25,8 +25,8 @@ export function claimGrowth(state, id) {
 
 /** Derive the transition from the committed report, never from a render/SSE event. */
 export function dispatchGrowth(before, after, jobId) {
-  const report = after.report;
-  if (before.job?.id !== jobId || report?.jobId !== jobId || !report.breakdown) return null;
+  const report = after.reports.find((r) => r.jobId === jobId);
+  if (!before.jobs.some((j) => j.id === jobId) || !report?.breakdown) return null;
   const previousXp = Math.max(0, after.xp - report.breakdown.xp);
   const from = levelInfo(previousXp).level;
   const to = levelInfo(after.xp).level;

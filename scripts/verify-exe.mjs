@@ -96,7 +96,7 @@ try {
   assert.equal((await js('window.api.getSettings()')).autoStartSupported, false);
   await js('window.api.setSettings({autoStart:true}); true'); await wait(400);
   assert.equal((await js('window.api.getSettings()')).autoStart, false);
-  assert.deepEqual((await state()).job, seed.job);
+  assert.deepEqual((await state()).jobs[0], seed.jobs[0]);
   mark('actual packaged renderer/preload/backend boot and isolated autostart disabled');
   evidence.displays = await js('window.api.getDisplays()');
   // No public network used. Emulate offline only for the renderer, not the OS adapter.
@@ -106,10 +106,10 @@ try {
   const request = (action) => js(`window.api.requestAction(${JSON.stringify(action)})`);
   // Deliberately block only this temporary profile's atomic-write path.
   await wait(400); fs.mkdirSync(file + '.tmp');
-  assert.equal((await request({ type: 'claim', jobId: seed.job.id })).ok, false);
-  assert.equal((await state()).coins, 120); assert.deepEqual((await state()).job, seed.job);
+  assert.equal((await request({ type: 'claim', jobId: seed.jobs[0].id })).ok, false);
+  assert.equal((await state()).coins, 120); assert.deepEqual((await state()).jobs[0], seed.jobs[0]);
   fs.rmdirSync(file + '.tmp');
-  assert((await request({ type: 'claim', jobId: seed.job.id })).ok);
+  assert((await request({ type: 'claim', jobId: seed.jobs[0].id })).ok);
   assert.equal((await state()).coins, 142); assert.equal((await state()).xp, 80);
   assert((await request({ type: 'claimGrowth', id: 'level-3' })).ok);
   assert((await request({ type: 'buy', id: 'm_mini' })).ok);
@@ -150,9 +150,9 @@ try {
   assert((await request({ type: 'startJob', site: 'yard' })).ok);
   const beforeRestart = await state();
   await close();
-  assert.deepEqual(JSON.parse(fs.readFileSync(file)).job, beforeRestart.job);
+  assert.deepEqual(JSON.parse(fs.readFileSync(file)).jobs[0], beforeRestart.jobs[0]);
   run = await launch();
-  assert.deepEqual((await state()).job, beforeRestart.job);
+  assert.deepEqual((await state()).jobs[0], beforeRestart.jobs[0]);
   for (const k of ['coins', 'xp', 'owned', 'equipped', 'growthClaimed', 'name']) assert.deepEqual((await state())[k], beforeRestart[k]);
   assert.equal((await js('window.api.getSettings()')).scale, 4);
   mark('real EXE quit/relaunch preserves pending job, dice, purchased machine, growth and settings');

@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { H } from '../skins/types';
-import { siteName, type GameState } from '../shared/reducer.mjs';
+import { siteName, type GameState, type Job } from '../shared/reducer.mjs';
 import { FONT } from './constants';
 import type { SceneHost } from './host';
 
@@ -34,7 +34,7 @@ export class Progress {
     this.label = undefined;
   }
 
-  draw(job: GameState['job']) {
+  draw(job: Job | null) {
     const s = this.host.sprite;
     if (!job || !s || !this.bar || !this.label) return;
     const { scalePx } = this.host;

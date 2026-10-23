@@ -1,7 +1,7 @@
 import { grantsOf } from './machine.mjs';
 import { fitsMachine, partById } from './parts.mjs';
 import { num, withMood } from './util.mjs';
-import { ROLLS_NEEDED, jobMultiplier } from './jobs.mjs';
+import { MAX_REPORTS, ROLLS_NEEDED, jobById, jobMultiplier } from './jobs.mjs';
 import { economySite, duplicateRefund, economyVersion } from './economy.mjs';
 import { PITY_FROM_VERSION, pityLimit, unownedMachines } from './pity.mjs';
 
@@ -45,8 +45,11 @@ function rollDrop(site, roll, machineId) {
 
 /** Collect a finished job: coins, drops, xp and wear, all rolled from the dice the server supplied. */
 export function claimJob(state, action) {
-  const job = state.job;
-  if (!job || num(action.now) < job.end || (action.jobId && action.jobId !== job.id)) return state;
+  const now = num(action.now);
+  // without an id, the earliest finished job is meant
+  const job = action.jobId ? jobById(state, action.jobId)
+    : state.jobs.filter((j) => now >= j.end).sort((a, b) => a.end - b.end)[0] ?? null;
+  if (!job || now < job.end) return state;
   const version = economyVersion(job.rulesVersion);
   const site = economySite(job.site, version);
   // Dice, all supplied by the server: 0-1 coin spread, 2 jackpot, then a (chance, item) pair per possible drop.
@@ -102,10 +105,10 @@ export function claimJob(state, action) {
       machinePity,
       xp: state.xp + site.xp,
       durability: remaining,
-      job: null,
-      report: { jobId: job.id, machineId: job.machineId, site: site.id, coins, drops, jackpot, at: num(action.now), seen: false,
+      jobs: state.jobs.filter((j) => j !== job),
+      reports: [{ jobId: job.id, machineId: job.machineId, desktop: job.desktop, site: site.id, coins, drops, jackpot, at: num(action.now), seen: false,
         breakdown: { base, jackpotBonus, equipmentBonus, duplicates, xp: site.xp, wear: Math.max(0, state.durability - remaining) },
-        ...(counted && !gotMachine ? { pity: { count: after, limit: pityLimit(site) } } : {}) },
+        ...(counted && !gotMachine ? { pity: { count: after, limit: pityLimit(site) } } : {}) }, ...state.reports].slice(0, MAX_REPORTS),
     },
     8,
   );

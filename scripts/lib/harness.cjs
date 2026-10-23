@@ -49,6 +49,11 @@ function makeShot(contents, output, { prefix = '', capture = {} } = {}) {
   };
 }
 
+/** Run a snippet in a page; a failure names the snippet instead of Electron's generic message. */
+function pageScript(contents) {
+  return (code) => contents().executeJavaScript(code).catch((err) => { throw new Error(`Page script failed: ${code.slice(0, 200)}`, { cause: err }); });
+}
+
 /** Replace the isolated profile's state through the debug-only admin route. */
 async function adminReplace(call, state) {
   const result = await call('/admin/replace', { method: 'POST', body: JSON.stringify({ state }) });
@@ -56,4 +61,4 @@ async function adminReplace(call, state) {
   return result.json();
 }
 
-module.exports = { wait, requireIsolatedProfile, watchContents, watchWindows, makeUntil, makeShot, adminReplace };
+module.exports = { wait, requireIsolatedProfile, watchContents, watchWindows, makeUntil, makeShot, pageScript, adminReplace };

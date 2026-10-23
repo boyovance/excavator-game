@@ -32,7 +32,8 @@ export function scenario(machine = 'm_std', loadout = 'stock', collection = 'sta
 export function simulateTrip(state, siteId, version, random, time = 1000, id = 'balance-trip') {
   const active = reduce(state, { type: 'startJob', site: siteId, now: time, id, rolls: dice(random) }, version);
   if (active === state) return { state, accepted: false, minutes: 0 };
-  return { state: reduce(active, { type: 'claim', jobId: active.job.id, now: active.job.end }), accepted: true,
+  const [job] = active.jobs;
+  return { state: reduce(active, { type: 'claim', jobId: job.id, now: job.end }), accepted: true,
     minutes: economySite(siteId, version).minutes };
 }
 
@@ -47,9 +48,10 @@ export function sampleSite({ machine = 'm_std', loadout = 'stock', collection = 
   const totals = { base: 0, jackpotBonus: 0, equipmentBonus: 0, duplicates: 0, gross: 0, repair: 0, net: 0, newParts: 0, parts: 0, machines: 0 };
   let minNet = Infinity;
   for (let i = 0; i < samples; i++) {
-    const active = { ...template, job: { ...template.job, rolls: dice(random) } };
-    const done = reduce(active, { type: 'claim', jobId: active.job.id, now: active.job.end });
-    const r = done.report;
+    const [job] = template.jobs;
+    const active = { ...template, jobs: [{ ...job, rolls: dice(random) }] };
+    const done = reduce(active, { type: 'claim', jobId: job.id, now: job.end });
+    const [r] = done.reports;
     for (const key of ['base', 'jackpotBonus', 'equipmentBonus', 'duplicates']) totals[key] += r.breakdown[key];
     const repair = repairCost(done.durability);
     totals.gross += r.coins; totals.repair += repair; totals.net += r.coins - repair;

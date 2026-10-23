@@ -10,7 +10,7 @@ import { startServer } from '../server/index.mjs';
 const test = (name, fn) => { fn(); console.log('PASS ' + name); };
 const base = normalize(null);
 test('fresh profile opens only yard and reset has no legacy rights', () => {
-  assert.equal(base.schemaVersion, 4);
+  assert.equal(base.schemaVersion, 5);
   assert.deepEqual(base.growthClaimed, []); assert.deepEqual(base.legacySites, []);
   assert.deepEqual(SITES.filter((s) => siteUnlocked(base, s.id)).map((s) => s.id), ['yard']);
   assert.equal(siteUnlocked(base, 'invalid'), false);
@@ -34,7 +34,7 @@ test('unlock and machine restrictions apply together, invalid IDs cannot grant r
   assert(canVisitSite(high, siteById('mine')));
   assert(!canVisitSite(high, siteById('alley')));
   assert.equal(reduce(base, { type: 'startJob', site: 'mine', now: 1 }), base);
-  assert(reduce(high, { type: 'startJob', site: 'mine', now: 1 }).job);
+  assert(reduce(high, { type: 'startJob', site: 'mine', now: 1 }).jobs[0]);
   assert.equal(reduce(high, { type: 'claimGrowth', id: 'invalid' }), high);
 });
 test('multiple levels can be claimed independently and remain claimed after normalization', () => {
@@ -50,11 +50,11 @@ test('legacy migration preserves inventory, loadouts, active snapshots and acces
   const migrated = normalize({ ...old, schemaVersion: 2 });
   assert.deepEqual(migrated.legacySites, LEGACY_SITES);
   assert.deepEqual(migrated.owned, old.owned); assert.deepEqual(migrated.equipped, old.equipped);
-  assert.deepEqual(migrated.job, old.job); assert.equal(migrated.coins, old.coins);
+  assert.deepEqual(migrated.jobs[0], old.jobs[0]); assert.equal(migrated.coins, old.coins);
   assert.deepEqual(normalize(migrated), migrated);
   assert.equal(reduce(migrated, { type: 'claimGrowth', id: 'level-2' }), migrated);
-  const finished = reduce(migrated, { type: 'claim', jobId: migrated.job.id, now: migrated.job.end });
-  assert.equal(finished.job, null); assert.equal(finished.xp, 300);
+  const finished = reduce(migrated, { type: 'claim', jobId: migrated.jobs[0].id, now: migrated.jobs[0].end });
+  assert.equal(finished.jobs.length, 0); assert.equal(finished.xp, 300);
   assert.equal(normalize({ xp: 0 }).legacySites.length, LEGACY_SITES.length);
 });
 test('new version fields are deduplicated and unknown or malformed IDs discarded', () => {
@@ -71,8 +71,8 @@ test('catalog source availability matches level restrictions and preserved legac
 
 const finished = (xp, site = 'yard', legacySites = []) => {
   const before = reduce({ ...base, xp, legacySites }, { type: 'startJob', site, now: 1000, id: `result-${xp}` });
-  const after = reduce(before, { type: 'claim', jobId: before.job.id, now: before.job.end });
-  return { before, after, result: dispatchGrowth(before, after, before.job.id) };
+  const after = reduce(before, { type: 'claim', jobId: before.jobs[0].id, now: before.jobs[0].end });
+  return { before, after, result: dispatchGrowth(before, after, before.jobs[0].id) };
 };
 test('integrated result only for a committed matching job which actually crosses a level', () => {
   assert.equal(finished(0).result, null);
@@ -80,10 +80,10 @@ test('integrated result only for a committed matching job which actually crosses
   assert.equal(result.from, 2); assert.equal(result.to, 3);
   assert.deepEqual(result.stages.map((g) => g.id), ['level-3']);
   assert.deepEqual(result.sites, ['quarry', 'scrap']);
-  assert.equal(result.report, after.report);
-  assert.equal(dispatchGrowth(before, before, before.job.id), null);
+  assert.equal(result.report, after.reports[0]);
+  assert.equal(dispatchGrowth(before, before, before.jobs[0].id), null);
   assert.equal(dispatchGrowth(before, after, 'stale-job'), null);
-  assert.equal(dispatchGrowth(after, after, before.job.id), null);
+  assert.equal(dispatchGrowth(after, after, before.jobs[0].id), null);
 });
 test('integrated multi-level result groups stages and does not call legacy access newly unlocked', () => {
   const { result } = finished(19, 'mine', LEGACY_SITES);
@@ -93,7 +93,7 @@ test('integrated multi-level result groups stages and does not call legacy acces
 });
 test('result uses committed report XP even if client before-state XP was stale', () => {
   const { before, after } = finished(68);
-  assert.equal(dispatchGrowth({ ...before, xp: 0 }, after, before.job.id).from, 2);
+  assert.equal(dispatchGrowth({ ...before, xp: 0 }, after, before.jobs[0].id).from, 2);
   const high = finished(979);
   assert.equal(high.result.from, 7); assert.equal(high.result.to, 8);
   assert.deepEqual(high.result.stages, []); assert.deepEqual(high.result.sites, []);

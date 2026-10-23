@@ -27,6 +27,7 @@ import { Scenery } from './scene/scenery';
 import { Speech } from './scene/speech';
 import { busyLine, tipText } from './scene/tips';
 import { partById } from './shared/parts.mjs';
+import { desktopJob } from './shared/jobs.mjs';
 import {
   digCoins,
   levelInfo,
@@ -214,8 +215,8 @@ export class ExcavatorScene extends Phaser.Scene {
       this.onPoke();
     });
 
-    if (this.game_.job) {
-      if (Date.now() >= this.game_.job.end) {
+    if (this.deskJob) {
+      if (Date.now() >= this.deskJob.end) {
         this.enterWaiting();
       } else if (this.settings.jobMode === 'stay') {
         this.enterWorking();
@@ -223,8 +224,8 @@ export class ExcavatorScene extends Phaser.Scene {
         this.state = 'away';
         this.sprite.setVisible(false);
       }
-    } else if (this.game_.report && !this.game_.report.seen) {
-      this.startReturning(this.game_.report);
+    } else if (this.unseenDesktopReport) {
+      this.startReturning(this.unseenDesktopReport);
     } else if (['poke', 'garage', 'job'].includes(this.settings.onboarding)) {
       this.time.delayedCall(1500, () => this.showTip());
     } else if (this.settings.onboarding === 'done') {
@@ -261,8 +262,16 @@ export class ExcavatorScene extends Phaser.Scene {
     return this.scale.height;
   }
 
+  private get deskJob() {
+    return desktopJob(this.game_);
+  }
+
+  private get unseenDesktopReport() {
+    return this.game_.reports.find((r) => r.desktop && !r.seen) ?? null;
+  }
+
   private get visualEquipment() {
-    return this.game_.job?.equippedSnapshot ?? this.game_.equipped;
+    return this.deskJob?.equippedSnapshot ?? this.game_.equipped;
   }
 
   private get build(): Build {
@@ -303,7 +312,7 @@ export class ExcavatorScene extends Phaser.Scene {
     }
     this.wantedSkin = s.skin;
     this.applyScale();
-    if (this.game_.job && Date.now() < this.game_.job.end && this.sprite && previousMode !== s.jobMode) {
+    if (this.deskJob && Date.now() < this.deskJob.end && this.sprite && previousMode !== s.jobMode) {
       if (s.jobMode === 'away' && this.state === 'working') {
         this.leaveWorking();
         this.startLeaving();
@@ -337,7 +346,7 @@ export class ExcavatorScene extends Phaser.Scene {
   applyState(next: GameState) {
     const prev = this.game_;
     const buildChanged =
-      JSON.stringify(next.job?.equippedSnapshot ?? next.equipped) !== JSON.stringify(prev.job?.equippedSnapshot ?? prev.equipped) ||
+      JSON.stringify(desktopJob(next)?.equippedSnapshot ?? next.equipped) !== JSON.stringify(desktopJob(prev)?.equippedSnapshot ?? prev.equipped) ||
       JSON.stringify(next.tint) !== JSON.stringify(prev.tint);
     this.game_ = next;
     if (buildChanged && this.sprite) this.refreshTextures();
@@ -397,7 +406,7 @@ export class ExcavatorScene extends Phaser.Scene {
       // a quick cheer so the click clearly registered, then straight back to the job
       this.leaveWorking();
       this.enterCheer(900);
-      this.say(busyLine(this.game_.job), 3000);
+      this.say(busyLine(this.deskJob), 3000);
       if (counts) api.dispatch({ type: 'poke' });
       return;
     }
@@ -577,7 +586,7 @@ export class ExcavatorScene extends Phaser.Scene {
     s.setVisible(true);
     s.angle = 0;
     this.progress.enter();
-    if (this.game_.job) this.scenery.show(this.game_.job.site);
+    if (this.deskJob) this.scenery.show(this.deskJob.site);
   }
 
   private leaveWorking() {
@@ -675,14 +684,14 @@ export class ExcavatorScene extends Phaser.Scene {
     this.life.update(delta);
     this.speech.place();
 
-    this.jobs.resume(this.game_.job);
+    this.jobs.resume(this.deskJob);
 
     const busy = ['broken', 'drag', 'fall', 'leave', 'away', 'return', 'waiting'].includes(this.state);
     if (this.game_.durability <= 0 && !busy) this.enterBroken();
 
     switch (this.state) {
       case 'idle':
-        if (this.game_.job && this.settings.jobMode === 'stay') {
+        if (this.deskJob && this.settings.jobMode === 'stay') {
           this.enterWorking();
           break;
         }
@@ -706,12 +715,12 @@ export class ExcavatorScene extends Phaser.Scene {
             if (motion.dirt && name === 'dump1') this.effects.spawnDirt('dump1', 5, [0, 60], [5, 40]);
           }
         }
-        this.progress.draw(this.game_.job);
+        this.progress.draw(this.deskJob);
         this.scenery.update();
         break;
 
       case 'waiting':
-        this.progress.draw(this.game_.job);
+        this.progress.draw(this.deskJob);
         break;
 
       case 'walk': {
@@ -833,7 +842,7 @@ export class ExcavatorScene extends Phaser.Scene {
             api.dispatch({ type: 'ackReport' });
           }
           this.enterIdle(1500);
-          this.jobs.resume(this.game_.job);
+          this.jobs.resume(this.deskJob);
         }
         break;
       }

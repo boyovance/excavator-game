@@ -39,7 +39,7 @@ function call(pathname, init = {}) {
 function dispatch(action) {
   return call('/dispatch', { method: 'POST', body: JSON.stringify(action), signal: AbortSignal.timeout(10_000) })
     .then(async (res) => {
-      if (!res.ok) return { ok: false, message: res.status === 503 ? '存檔失敗，進度未變更。請檢查磁碟後重試。' : action.type === 'claimGrowth' ? '尚未達到階段目標或獎勵不存在，請重新確認。' : ['buy', 'equip'].includes(action.type) ? '無法套用：請檢查金幣、擁有狀態及機型適配。' : '工作狀態或出發條件已變更，請檢查完成時間、等級、機型及耐久。' };
+      if (!res.ok) return { ok: false, message: res.status === 503 ? '存檔失敗，進度未變更。請檢查磁碟後重試。' : action.type === 'claimGrowth' ? '尚未達到階段目標或獎勵不存在，請重新確認。' : ['buy', 'equip'].includes(action.type) ? '無法套用：請檢查金幣、擁有狀態及機型適配。' : action.type === 'buySlot' ? '金幣不足，或第 2 派遣槽已解鎖。' : '工作狀態或出發條件已變更，請檢查完成時間、等級、機型、耐久，以及工作槽、機型或工地是否已被佔用。' };
       return { ok: true, message: '操作成功', state: await res.json() };
     }).catch((err) => {
       logLine('dispatch-failed', err);
