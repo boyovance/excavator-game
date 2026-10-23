@@ -3,20 +3,17 @@ const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 const { bannerScript } = require('./demo-banner.cjs');
-const dir = process.env.EXCAVATOR_USER_DATA;
-assert(path.basename(dir ?? '').startsWith('exc-release-'), 'Isolated test profile required');
+const { wait, requireIsolatedProfile, watchContents, makeUntil, makeShot, adminReplace } = require('./lib/harness.cjs');
+const dir = requireIsolatedProfile('exc-release-');
 const root = process.env.EXCAVATOR_TEST_ROOT;
 const version = require(path.join(root, 'package.json')).version;
 const output = process.env.EXCAVATOR_RELEASE_OUTPUT;
 const phase = process.env.EXCAVATOR_RELEASE_PHASE;
 const demo = phase === 'demo';
 const errors = [];
-const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 nativeTheme.themeSource = 'light';
 app.on('browser-window-created', (_e, win) => {
-  win.webContents.setBackgroundThrottling(false);
-  win.webContents.on('console-message', (d) => { if (d.level === 'error') errors.push(d.message); });
-  win.webContents.on('render-process-gone', (_event, details) => errors.push(JSON.stringify(details)));
+  watchContents(win.webContents, errors);
   if (demo) win.webContents.on('did-finish-load', () => {
     if (!win.webContents.getURL().includes('/garage.html')) return;
     win.setTitle(`${version} 發佈驗收 — 獨立新存檔`);
@@ -27,10 +24,7 @@ require(path.join(root, 'electron/main.cjs'));
 const ctx = require(path.join(root, 'electron/context.cjs'));
 const backend = require(path.join(root, 'electron/server.cjs'));
 const { openGarage } = require(path.join(root, 'electron/windows.cjs'));
-async function until(fn) {
-  for (let i = 0; i < 400; i++) { if (await fn()) return; await wait(50); }
-  throw Error(`Release phase ${phase} timed out`);
-}
+const until = makeUntil(`release phase ${phase}`, 400);
 const read = (name) => JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8'));
 const write = (name, value) => fs.writeFileSync(path.join(dir, name), JSON.stringify(value, null, 2));
 let g;
@@ -48,14 +42,9 @@ let g;
   const js = (code) => g.executeJavaScript(code);
   const click = (selector) => js(`document.querySelector(${JSON.stringify(selector)}).click()`);
   await until(() => js('document.querySelector("#skin").options.length >= 3'));
-  const shot = async (name) => {
-    await wait(300);
-    const image = await g.capturePage(undefined, { stayAwake: true });
-    assert(!image.isEmpty()); fs.writeFileSync(path.join(output, `${phase}-${name}.png`), image.toPNG());
-  };
+  const shot = makeShot(() => g, output, { prefix: `${phase}-` });
   const replace = async (state) => {
-    const r = await backend.call('/admin/replace', { method: 'POST', body: JSON.stringify({ state }) });
-    assert.equal(r.status, 200);
+    await adminReplace(backend.call, state);
     await until(() => js(`window.api.getState().then(s=>s.coins===${state.coins} && s.durability===${state.durability})`));
     await wait(150);
   };

@@ -1,22 +1,4 @@
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
-import electron from 'electron';
-const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'exc-growth-ui-'));
-const demo = process.argv.includes('--demo');
-const output = path.resolve('artifacts/growth');
-fs.mkdirSync(output, { recursive: true });
-fs.writeFileSync(path.join(dir, 'settings.json'), JSON.stringify({ onboarding: 'done', jobMode: 'stay', chatter: 'off', notify: false, scale: 3 }));
-const env = { ...process.env, EXCAVATOR_USER_DATA: dir, EXCAVATOR_DEBUG: '1', EXCAVATOR_GROWTH_OUTPUT: output };
-for (const key of ['ELECTRON_RUN_AS_NODE', 'EXCAVATOR_SERVER_URL', 'EXCAVATOR_TOKEN', 'VITE_DEV_SERVER_URL']) delete env[key];
-if (demo) env.EXCAVATOR_GROWTH_DEMO = '1'; else delete env.EXCAVATOR_GROWTH_DEMO;
-console.log(`Isolated growth ${demo ? 'demo' : 'test'} data: ${dir}`);
-const child = spawn(electron, [fileURLToPath(new URL('./verify-growth.cjs', import.meta.url))], { env, stdio: 'inherit', windowsHide: true });
-const timeout = demo ? null : setTimeout(() => child.kill(), 90_000);
-child.on('exit', (code) => {
-  clearTimeout(timeout);
-  if (code === 0 && !demo) fs.rmSync(dir, { recursive: true, force: true });
-  process.exitCode = code === 0 ? 0 : 1;
-});
+import { runUiCheck } from './lib/launch.mjs';
+
+await runUiCheck({ label: 'growth', prefix: 'exc-growth-ui-', artifacts: 'growth', script: 'verify-growth.cjs',
+  outputEnv: 'EXCAVATOR_GROWTH_OUTPUT', demoEnv: 'EXCAVATOR_GROWTH_DEMO' });

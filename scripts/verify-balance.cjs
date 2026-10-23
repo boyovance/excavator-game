@@ -3,15 +3,14 @@ const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 const { pathToFileURL } = require('node:url');
-const dir = process.env.EXCAVATOR_USER_DATA;
-assert(path.basename(dir ?? '').startsWith('exc-balance-ui-'));
+const { wait, requireIsolatedProfile, watchContents, makeUntil, makeShot } = require('./lib/harness.cjs');
+const dir = requireIsolatedProfile('exc-balance-ui-');
 app.setPath('userData', dir);
 const demo = process.env.EXCAVATOR_BALANCE_DEMO === '1';
 const output = process.env.EXCAVATOR_BALANCE_OUTPUT;
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const errors = [];
 let win;
-async function until(fn) { for (let i = 0; i < 300; i++) { if (await fn()) return; await wait(50); } throw Error('Balance UI timeout'); }
+const until = makeUntil('balance UI');
 app.on('window-all-closed', () => app.quit());
 (async () => {
   await app.whenReady(); nativeTheme.themeSource = 'light';
@@ -23,20 +22,14 @@ app.on('window-all-closed', () => app.quit());
   win.webContents.on('will-navigate', (event) => event.preventDefault());
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-attach-webview', (event) => event.preventDefault());
-  win.webContents.on('console-message', (detail) => { if (detail.level === 'error') errors.push(detail.message); });
+  watchContents(win.webContents, errors);
   await win.loadURL(url);
   const js = (code) => win.webContents.executeJavaScript(code);
   await until(() => js('document.querySelector("#comparison-status").textContent.includes("比較完成")'));
   if (demo) { win.show(); win.focus(); console.log('Demo ready: compare original/candidate income, then simulate dispatch, repairs and purchases in the isolated sandbox.'); return; }
   const choose = async (id, value) => { await js(`document.querySelector('#${id}').value=${JSON.stringify(value)};document.querySelector('#${id}').dispatchEvent(new Event('change'))`); };
   const click = (id) => js(`document.querySelector('#${id}').click()`);
-  const shot = async (id) => {
-    for (let i = 0; i < 3; i++) {
-      await wait(300);
-      try { const img = await win.webContents.capturePage(undefined, { stayHidden: true, stayAwake: true }); assert(!img.isEmpty()); fs.writeFileSync(path.join(output, id + '.png'), img.toPNG()); return; }
-      catch (error) { if (i === 2) throw error; }
-    }
-  };
+  const shot = makeShot(() => win.webContents, output, { capture: { stayHidden: true } });
   assert(await js('typeof window.api === "undefined" && typeof require === "undefined"'));
   assert.equal(await js('document.querySelectorAll("[data-compare-site]").length'), 5);
   const first = await js('document.querySelector("#balance-rows").textContent');

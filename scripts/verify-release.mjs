@@ -1,29 +1,17 @@
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
-import electron from 'electron';
+import { cleanEnv, demoRequested, isolatedProfile, outputDir, runElectron } from './lib/launch.mjs';
 
-const demo = process.argv.includes('--demo');
+const demo = demoRequested();
 const packaged = process.argv.includes('--packaged');
-const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'exc-release-'));
-const output = path.resolve('artifacts/release');
-fs.mkdirSync(output, { recursive: true });
 const root = packaged ? path.resolve('release/win-unpacked/resources/app.asar') : path.resolve('.');
 if (!fs.existsSync(root)) throw Error('Build the Windows package before --packaged');
-const env = { ...process.env, EXCAVATOR_USER_DATA: dir, EXCAVATOR_DEBUG: '1', EXCAVATOR_TEST_ROOT: root, EXCAVATOR_RELEASE_OUTPUT: output };
-for (const key of ['ELECTRON_RUN_AS_NODE', 'EXCAVATOR_SERVER_URL', 'EXCAVATOR_TOKEN', 'VITE_DEV_SERVER_URL']) delete env[key];
 // Own isolated profile only: leave first-run onboarding enabled.
-fs.writeFileSync(path.join(dir, 'settings.json'), JSON.stringify({ onboarding: 'welcome', autoStart: false, notify: false, chatter: 'off', jobMode: 'stay' }));
+const dir = isolatedProfile('exc-release-', { onboarding: 'welcome', autoStart: false, notify: false, chatter: 'off', jobMode: 'stay' });
+const env = cleanEnv({ EXCAVATOR_USER_DATA: dir, EXCAVATOR_DEBUG: '1', EXCAVATOR_TEST_ROOT: root, EXCAVATOR_RELEASE_OUTPUT: outputDir('release') });
 console.log(`Isolated ${packaged ? 'packaged-resource' : 'source'} release ${demo ? 'demo' : 'test'}: ${dir}`);
 async function phase(id) {
-  const child = spawn(electron, [fileURLToPath(new URL('./verify-release.cjs', import.meta.url))], {
-    env: { ...env, EXCAVATOR_RELEASE_PHASE: id }, stdio: 'inherit', windowsHide: true,
-  });
-  const timer = demo ? null : setTimeout(() => child.kill(), 120_000);
-  const code = await new Promise((resolve, reject) => { child.on('error', reject); child.on('exit', resolve); });
-  clearTimeout(timer);
+  const code = await runElectron('verify-release.cjs', { ...env, EXCAVATOR_RELEASE_PHASE: id }, demo ? null : 120_000);
   if (code !== 0) throw Error(`Release phase ${id} failed; profile retained: ${dir}`);
 }
 try {

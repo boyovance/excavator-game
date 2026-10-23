@@ -1,14 +1,13 @@
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import electron from 'electron';
+import { cleanEnv, isolatedProfile, scriptPath } from './lib/launch.mjs';
 
-const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'exc-smoke-'));
-const env = { ...process.env, EXCAVATOR_USER_DATA: dir, EXCAVATOR_DEBUG: '1' };
-for (const key of ['ELECTRON_RUN_AS_NODE', 'EXCAVATOR_SERVER_URL', 'EXCAVATOR_TOKEN', 'VITE_DEV_SERVER_URL']) delete env[key];
-const child = spawnSync(electron, [fileURLToPath(new URL('./smoke-electron.cjs', import.meta.url))], {
+// Captures output instead of streaming it, so a failure can print the app log next to it.
+const dir = isolatedProfile('exc-smoke-');
+const env = cleanEnv({ EXCAVATOR_USER_DATA: dir, EXCAVATOR_DEBUG: '1' });
+const child = spawnSync(electron, [scriptPath('smoke-electron.cjs')], {
   env, encoding: 'utf8', timeout: 45_000, windowsHide: true,
 });
 console.log(child.stdout);

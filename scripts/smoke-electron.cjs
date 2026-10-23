@@ -2,20 +2,11 @@ const { app, BrowserWindow } = require('electron');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const errors = [];
-app.on('browser-window-created', (_event, win) => {
-  win.hide();
-  win.webContents.on('console-message', (details) => {
-    if (details.level === 'error') errors.push(details.message);
-  });
-});
+const { watchWindows, makeUntil } = require('./lib/harness.cjs');
+const errors = watchWindows(app, { hide: true });
 require('../electron/main.cjs');
 const ctx = require('../electron/context.cjs');
-async function until(check) {
-  for (let i = 0; i < 200; i++) { if (await check()) return; await wait(50); }
-  throw new Error('Timed out waiting for Electron UI');
-}
+const until = makeUntil('Electron UI', 200);
 (async () => {
   await app.whenReady();
   await until(() => ctx.win && ctx.garageWin && !ctx.win.webContents.isLoading() && !ctx.garageWin.webContents.isLoading());

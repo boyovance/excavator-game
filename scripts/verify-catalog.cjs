@@ -3,25 +3,17 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { bannerScript } = require('./demo-banner.cjs');
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const { wait, requireIsolatedProfile, watchWindows, makeUntil, makeShot, adminReplace } = require('./lib/harness.cjs');
 const demo = process.env.EXCAVATOR_CATALOG_DEMO === '1';
 const output = process.env.EXCAVATOR_CATALOG_OUTPUT;
-assert(path.basename(process.env.EXCAVATOR_USER_DATA ?? '').startsWith('exc-catalog-ui-'), 'Test profile required');
-const errors = [];
+requireIsolatedProfile('exc-catalog-ui-');
 nativeTheme.themeSource = 'light';
-app.on('browser-window-created', (_e, win) => {
-  if (!demo) win.hide();
-  win.webContents.setBackgroundThrottling(false);
-  win.webContents.on('console-message', (d) => { if (d.level === 'error') errors.push(d.message); });
-});
+const errors = watchWindows(app, { hide: !demo });
 require('../electron/main.cjs');
 const ctx = require('../electron/context.cjs');
 const { call } = require('../electron/server.cjs');
 const { openGarage } = require('../electron/windows.cjs');
-async function until(fn) {
-  for (let i = 0; i < 300; i++) { if (await fn()) return; await wait(50); }
-  throw Error('Timed out waiting for catalog UI');
-}
+const until = makeUntil('catalog UI');
 (async () => {
   await app.whenReady();
   await until(() => ctx.win && ctx.gameState && !ctx.win.webContents.isLoading());
@@ -31,7 +23,7 @@ async function until(fn) {
   const js = (code) => g.executeJavaScript(code);
   await until(() => js('!!document.querySelector("[data-open-part]")'));
   const replace = async (state) => {
-    assert.equal((await call('/admin/replace', { method: 'POST', body: JSON.stringify({ state }) })).status, 200);
+    await adminReplace(call, state);
     await until(() => ctx.gameState.coins === state.coins);
   };
   const seed = ctx.rules.reduce(ctx.rules.normalize({ coins: 500, name: '圖鑑測試', owned: ['m_mini', 'boom_mini_ext'], loadouts: { m_mini: { boom: 'boom_mini_ext' } } }), { type: 'startJob', site: 'yard', id: 'catalog-demo-job', now: Date.now() });
@@ -39,18 +31,7 @@ async function until(fn) {
   await until(() => js('document.querySelector("#pet-name").value === "圖鑑測試"'));
   const badge = () => js(bannerScript('零件圖鑑驗收演示 · 獨立存檔 · 購買與換裝不影響正式進度'));
   await badge();
-  const shot = async (id) => {
-    // Theme/size changes can briefly invalidate Chromium's compositor surface.
-    for (let attempt = 0; attempt < 3; attempt++) {
-      await wait(300);
-      try {
-        const capture = await g.capturePage(undefined, { stayHidden: !demo, stayAwake: true });
-        assert(!capture.isEmpty(), 'Empty screenshot');
-        fs.writeFileSync(path.join(output, id + '.png'), capture.toPNG());
-        return;
-      } catch (err) { if (attempt === 2) throw new Error(`Screenshot ${id} failed`, { cause: err }); }
-    }
-  };
+  const shot = makeShot(() => g, output, { capture: { stayHidden: !demo } });
   const category = async (slot) => { await js(`document.querySelector('[data-slot="${slot}"]').click()`); };
   const open = async (id) => { await js(`document.querySelector('[data-open-part="${id}"]').click()`); assert(await js('document.querySelector("#part-detail").open')); };
   const close = async () => { await js('document.querySelector("#part-close").click()'); await wait(60); };

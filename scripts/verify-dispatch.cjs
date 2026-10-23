@@ -3,26 +3,18 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { bannerScript } = require('./demo-banner.cjs');
-const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const { wait, requireIsolatedProfile, watchWindows, makeUntil, makeShot, adminReplace } = require('./lib/harness.cjs');
 const demo = process.env.EXCAVATOR_DISPATCH_DEMO === '1';
 const output = process.env.EXCAVATOR_DISPATCH_OUTPUT;
-assert(process.env.EXCAVATOR_USER_DATA && path.basename(process.env.EXCAVATOR_USER_DATA).startsWith('exc-dispatch-'), 'Only an isolated test profile may run this script');
+requireIsolatedProfile('exc-dispatch-');
 nativeTheme.themeSource = 'light';
-const errors = [];
-app.on('browser-window-created', (_e, win) => {
-  if (!demo) win.hide();
-  win.webContents.setBackgroundThrottling(false);
-  win.webContents.on('console-message', (details) => { if (details.level === 'error') errors.push(details.message); });
-});
+const errors = watchWindows(app, { hide: !demo });
 require('../electron/main.cjs');
 const ctx = require('../electron/context.cjs');
 const backend = require('../electron/server.cjs');
 const { openGarage } = require('../electron/windows.cjs');
 const { updateSettings } = require('../electron/settings.cjs');
-async function until(check) {
-  for (let i = 0; i < 300; i++) { if (await check()) return; await wait(50); }
-  throw new Error('Timed out waiting for dispatch UI');
-}
+const until = makeUntil('dispatch UI');
 (async () => {
   await app.whenReady();
   await until(() => ctx.win && ctx.gameState && !ctx.win.webContents.isLoading());
@@ -34,24 +26,14 @@ async function until(check) {
   const scene = (code) => p.executeJavaScript(code);
   await until(() => js('!!document.querySelector("[data-site=yard]")'));
   await until(() => scene('!!window.__excavator?.sprite'));
-  const replace = async (state) => {
-    const result = await backend.call('/admin/replace', { method: 'POST', body: JSON.stringify({ state }) });
-    assert.equal(result.status, 200);
-    return result.json();
-  };
+  const replace = (state) => adminReplace(backend.call, state);
   // Existing game art and production renderer, deterministic test rewards only.
   await replace({ ...ctx.gameState, name: '派遣測試', coins: 120, xp: 0, durability: 100, owned: [...ctx.gameState.owned, 'stick_long', 'acc_beacon'], equipped: { ...ctx.gameState.equipped, stick: 'stick_long' } });
   await until(() => js('document.querySelector("#pet-name").value === "派遣測試"'));
   await js(bannerScript('派遣驗收演示 · 獨立測試存檔 · 測試已加速計時，不影響正式進度'));
   ctx.garageWin.setTitle('派遣驗收演示 — 不影響正式存檔');
   const focusJobs = () => js('document.querySelector("#jobs").closest("section").scrollIntoView(); window.scrollBy(0,-38)');
-  const shot = async (name) => {
-    for (let attempt = 1; ; attempt++) {
-      await wait(250 * attempt);
-      try { fs.writeFileSync(path.join(output, `${name}.png`), (await g.capturePage()).toPNG()); return; }
-      catch (err) { if (attempt === 3) throw new Error(`Screenshot ${name} failed`, { cause: err }); }
-    }
-  };
+  const shot = makeShot(() => g, output);
   const originalSize = ctx.garageWin.getContentSize();
   for (const width of [originalSize[0], 380]) {
     ctx.garageWin.setContentSize(width, originalSize[1]);

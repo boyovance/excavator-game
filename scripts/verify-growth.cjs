@@ -3,25 +3,17 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { bannerScript } = require('./demo-banner.cjs');
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const { wait, requireIsolatedProfile, watchWindows, makeUntil, makeShot, adminReplace } = require('./lib/harness.cjs');
 const demo = process.env.EXCAVATOR_GROWTH_DEMO === '1';
 const output = process.env.EXCAVATOR_GROWTH_OUTPUT;
-assert(path.basename(process.env.EXCAVATOR_USER_DATA ?? '').startsWith('exc-growth-ui-'), 'Test profile required');
-const errors = [];
+requireIsolatedProfile('exc-growth-ui-');
 nativeTheme.themeSource = 'light';
-app.on('browser-window-created', (_e, win) => {
-  if (!demo) win.hide();
-  win.webContents.setBackgroundThrottling(false);
-  win.webContents.on('console-message', (d) => { if (d.level === 'error') errors.push(d.message); });
-});
+const errors = watchWindows(app, { hide: !demo });
 require('../electron/main.cjs');
 const ctx = require('../electron/context.cjs');
 const { call } = require('../electron/server.cjs');
 const { openGarage } = require('../electron/windows.cjs');
-async function until(fn) {
-  for (let i = 0; i < 300; i++) { if (await fn()) return; await wait(50); }
-  throw Error('Timed out waiting for growth UI');
-}
+const until = makeUntil('growth UI');
 (async () => {
   await app.whenReady();
   await until(() => ctx.win && ctx.gameState && !ctx.win.webContents.isLoading());
@@ -31,7 +23,7 @@ async function until(fn) {
   const js = (code) => g.executeJavaScript(code);
   await until(() => js('!!document.querySelector("[data-growth-claim]")'));
   const replace = async (state) => {
-    assert.equal((await call('/admin/replace', { method: 'POST', body: JSON.stringify({ state }) })).status, 200);
+    await adminReplace(call, state);
     await until(async () => (await js('window.api.getState()')).xp === state.xp);
     await wait(100);
   };
@@ -39,15 +31,7 @@ async function until(fn) {
     { type: 'startJob', site: 'yard', id: 'growth-demo-job', now: Date.now() - 301000, rolls: [0.5, 0.5, 0.99, 0, 0, 0.99, 0, 0.99, 0, 0.99, 0] });
   const badge = () => js(bannerScript('整合結果驗收 · 獨立存檔 · 領取收穫後自動展示升級，可當場領獎'));
   const scroll = (id) => js(`document.querySelector(${JSON.stringify(id)}).scrollIntoView({block:'start'})`);
-  const shot = async (id) => {
-    for (let attempt = 0; attempt < 3; attempt++) {
-      await wait(300);
-      try {
-        const capture = await g.capturePage(undefined, { stayHidden: !demo, stayAwake: true });
-        assert(!capture.isEmpty()); fs.writeFileSync(path.join(output, id + '.png'), capture.toPNG()); return;
-      } catch (err) { if (attempt === 2) throw err; }
-    }
-  };
+  const shot = makeShot(() => g, output, { capture: { stayHidden: !demo } });
   if (demo) {
     await replace(seed); await badge(); await scroll('#jobs');
     ctx.garageWin.setTitle('派遣升級整合結果驗收 — 獨立測試存檔'); ctx.garageWin.show(); ctx.garageWin.focus();
