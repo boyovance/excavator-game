@@ -23,6 +23,7 @@ import { Life, type LifeHost } from './scene/life';
 import { Loot } from './scene/loot';
 import { Progress } from './scene/progress';
 import { JobController } from './scene/jobs';
+import { Companion } from './scene/companion';
 import { Scenery } from './scene/scenery';
 import { Speech } from './scene/speech';
 import { busyLine, tipText } from './scene/tips';
@@ -50,6 +51,8 @@ import {
 
 export class ExcavatorScene extends Phaser.Scene {
   private sprite?: Phaser.GameObjects.Image;
+  /** the garage machine out on the other slot, drawn small beside the pet */
+  private companion = new Companion(this);
   private skin: Skin;
   private wantedSkin: string;
   private settings: Settings;
@@ -242,6 +245,19 @@ export class ExcavatorScene extends Phaser.Scene {
       const halfW = (W * this.scalePx) / 2;
       this.sprite.x = Phaser.Math.Clamp(this.sprite.x, halfW, Math.max(halfW, this.scale.width - halfW));
     });
+    this.syncCompanion();
+  }
+
+  /** Where the companion should stand: beside the pet while the pet is on screen. */
+  private get petAnchor() {
+    const s = this.sprite;
+    if (!s || !s.visible || ['leave', 'away'].includes(this.state)) return undefined;
+    return { x: s.x, width: W * this.scalePx };
+  }
+
+  private syncCompanion() {
+    const job = this.game_.jobs.find((j) => !j.desktop) ?? null;
+    this.companion.sync(job, this.game_.tint, this.skin, this.settings.scale, this.petAnchor);
   }
 
   private showTip() {
@@ -312,6 +328,7 @@ export class ExcavatorScene extends Phaser.Scene {
     }
     this.wantedSkin = s.skin;
     this.applyScale();
+    if (this.sprite) this.syncCompanion();
     if (this.deskJob && Date.now() < this.deskJob.end && this.sprite && previousMode !== s.jobMode) {
       if (s.jobMode === 'away' && this.state === 'working') {
         this.leaveWorking();
@@ -327,6 +344,7 @@ export class ExcavatorScene extends Phaser.Scene {
       this.skin = next;
       this.refreshTextures();
       this.applyScale();
+      this.syncCompanion();
     });
   }
 
@@ -351,6 +369,7 @@ export class ExcavatorScene extends Phaser.Scene {
     this.game_ = next;
     if (buildChanged && this.sprite) this.refreshTextures();
     if (!this.sprite) return;
+    this.syncCompanion();
     this.reactToChanges(prev, next);
 
     this.jobs.changed(prev, next);
@@ -483,6 +502,7 @@ export class ExcavatorScene extends Phaser.Scene {
       flip: this.sprite?.flipX ?? false,
       y: this.sprite?.y ?? 0,
       said: this.lastSaid,
+      companion: this.companion.debugState(),
       trace: this.trace.slice(-14),
       now: Math.round(performance.now()),
     };
@@ -680,6 +700,7 @@ export class ExcavatorScene extends Phaser.Scene {
     const delta = Math.min(rawDelta, 100);
     const dt = delta / 1000;
     this.effects.updateParticles(dt);
+    this.companion.update(delta, this.petAnchor);
     this.effects.updateSmoke(delta, this.game_.durability, this.state);
     this.life.update(delta);
     this.speech.place();

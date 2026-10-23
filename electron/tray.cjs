@@ -5,6 +5,13 @@ const { dispatch } = require('./server.cjs');
 const { updateSettings } = require('./settings.cjs');
 const { openGarage } = require('./windows.cjs');
 
+/** "1 份工作中 · 1 份待領取", or '' with nothing out. */
+function jobSummary(jobs, now = Date.now()) {
+  const ready = jobs.filter((j) => now >= j.end).length;
+  const running = jobs.length - ready;
+  return [running && `${running} 份工作中`, ready && `${ready} 份待領取`].filter(Boolean).join(' · ');
+}
+
 function buildMenu() {
   const { rules, gameState, settings, skins } = ctx;
   const cost = rules.repairCost(gameState.durability);
@@ -28,6 +35,7 @@ function buildMenu() {
       label: `${gameState.name} Lv.${rules.levelInfo(gameState.xp).level}　陪伴 ${rules.companionDays(gameState)} 天　金幣:${gameState.coins}　耐久:${Math.round(gameState.durability)}%`,
       enabled: false,
     },
+    ...(jobItems.length ? [{ label: `派遣：${jobSummary(gameState.jobs)}`, enabled: false }] : []),
     ...jobItems,
     {
       label: cost > 0 ? `維修(${cost} 金幣)` : '狀態良好',
@@ -89,7 +97,10 @@ function buildMenu() {
 }
 
 function refreshMenus() {
-  if (ctx.tray && ctx.rules && ctx.gameState) ctx.tray.setContextMenu(buildMenu());
+  if (!ctx.tray || !ctx.rules || !ctx.gameState) return;
+  ctx.tray.setContextMenu(buildMenu());
+  const summary = jobSummary(ctx.gameState.jobs);
+  ctx.tray.setToolTip(summary ? `Excavator · ${summary}` : 'Excavator');
 }
 
 function createTray() {
@@ -99,4 +110,4 @@ function createTray() {
   refreshMenus();
 }
 
-module.exports = { buildMenu, refreshMenus, createTray };
+module.exports = { buildMenu, refreshMenus, createTray, jobSummary };

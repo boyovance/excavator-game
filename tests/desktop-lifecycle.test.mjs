@@ -82,3 +82,25 @@ notify.notifyReturn(null, state.gameState); currentTimer.fn(); assert.equal(noti
 state.gameState.jobs = [{ ...job, id: 'cancelled', end: now + 60_000 }]; notify.notifyReturn(null, state.gameState); assert.notEqual(currentTimer, null);
 state.gameState.jobs = []; notify.notifyReturn(null, state.gameState); assert.equal(currentTimer, null);
 console.log('PASS Notification handlers: clock reversal/jump, quiet/disabled, cancel and no payout (mocked native notification)');
+
+// Tray: a count summary in the tooltip and menu, refreshed with every state change.
+{
+  let tooltip = '', menu = null;
+  const trayCtx = { rules: { repairCost: () => 0, levelInfo: () => ({ level: 3 }), companionDays: () => 2, siteName: () => '工地', partName: () => '挖掘機' },
+    gameState: { name: '小黃', xp: 0, coins: 9, durability: 100, jobs: [] }, settings: { onboarding: 'done', petVisible: true, skin: 'pixel', scale: 3 }, skins: [],
+    tray: { setContextMenu: (m) => { menu = m; }, setToolTip: (t) => { tooltip = t; } } };
+  const tray = moduleFrom('../electron/tray.cjs', {
+    electron: { app: {}, Menu: { buildFromTemplate: (t) => t }, Tray: class {}, nativeImage: {}, dialog: {} }, path: { join: (...p) => p.join('/') },
+    './context.cjs': trayCtx, './server.cjs': { dispatch() {} }, './settings.cjs': { updateSettings() {} }, './windows.cjs': { openGarage() {} },
+  }, { Date: { now: () => 10_000 } });
+  tray.refreshMenus();
+  assert.equal(tooltip, 'Excavator');
+  assert.equal(menu.some((i) => String(i.label).startsWith('派遣：')), false);
+  trayCtx.gameState.jobs = [{ id: 'a', site: 'yard', machineId: 'm_std', end: 5_000 }, { id: 'b', site: 'alley', machineId: 'm_mini', end: 99_000 }];
+  tray.refreshMenus();
+  assert.equal(tooltip, 'Excavator · 1 份工作中 · 1 份待領取');
+  assert.equal(menu[1].label, '派遣：1 份工作中 · 1 份待領取');
+  assert.equal(menu.filter((i) => String(i.label).startsWith('挖掘機・')).length, 2);
+  assert.equal(tray.jobSummary([{ end: 1 }, { end: 2 }], 5), '2 份待領取');
+  console.log('PASS Tray: job count summary in tooltip and menu, one line per job (mocked tray)');
+}

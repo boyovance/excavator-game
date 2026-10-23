@@ -176,6 +176,15 @@ const until = makeUntil('dispatch UI');
     assert.equal(miniJob.machineId, 'm_mini'); assert.equal(miniJob.desktop, false);
     assert.equal(ctx.gameState.equipped.machine, 'm_std');
     assert.notEqual(await scene('window.__excavator.debugState().state'), 'working', 'a garage machine does not move the desktop pet');
+    // the garage machine appears small beside the pet, works, and never takes the mouse
+    await until(() => scene('window.__excavator.debugState().companion?.visible === true'));
+    // it slides into place beside the pet; check once it has settled
+    await until(async () => { const a = await scene('window.__excavator.debugState().companion.x'); await wait(150); return a === await scene('window.__excavator.debugState().companion.x'); });
+    const companion = await scene('window.__excavator.debugState().companion');
+    assert.equal(companion.jobId, miniJob.id);
+    assert(companion.scale < await scene('window.__excavator.sprite.scaleX'), 'companion is drawn smaller than the pet');
+    assert.equal(await scene(`window.__excavator.hitTest(${companion.x}, innerHeight - 8)`), false, 'clicks pass through the companion');
+    await until(() => scene('/^(dig|dump|tinker)/.test(window.__excavator.debugState().companion.pose)'));
     await until(() => js('document.querySelector("#job-machine")?.value === "m_std"'));
     assert(await js('document.querySelector("[data-site=yard]").disabled && document.querySelector("[data-site=yard]").textContent.includes("已有工作進行中")'));
     await js('document.querySelector("[data-site=quarry]").click()');
@@ -184,11 +193,19 @@ const until = makeUntil('dispatch UI');
     assert.equal(ctx.gameState.jobs[1].desktop, true);
     await until(() => js('document.querySelectorAll(".mission-card").length === 2 && document.querySelector("#jobs").textContent.includes("所有工作槽都在使用中")'));
     await focusJobs(); await shot('14-slots-two-jobs');
+    const petShot = async (name) => {
+      const box = await scene('(() => { const a = window.__excavator.sprite.x, b = window.__excavator.debugState().companion.x; const l = Math.max(0, Math.min(a, b) - 170); return { x: Math.floor(l), y: Math.max(0, innerHeight - 240), width: Math.min(innerWidth - Math.floor(l), Math.abs(a - b) + 340), height: Math.min(240, innerHeight) }; })()');
+      fs.writeFileSync(path.join(output, `${name}.png`), (await p.capturePage(box)).toPNG());
+    };
+    await petShot('16-desktop-companion');
     await replace({ ...ctx.gameState, jobs: [{ ...miniJob, start: Date.now() - 301_000, end: Date.now() - 1000 }, ctx.gameState.jobs[1]] });
     await until(() => js('document.querySelectorAll("[data-job=claim]").length === 1'));
+    await until(() => scene('window.__excavator.debugState().companion?.label.includes("待領取")'));
+    await petShot('17-desktop-companion-ready');
     await js('document.querySelector("[data-job=claim]").click()');
     await until(() => ctx.gameState.jobs.length === 1 && ctx.gameState.reports[0]?.jobId === miniJob.id);
     assert.equal(ctx.gameState.jobs[0].machineId, 'm_std');
+    await until(() => scene('window.__excavator.debugState().companion === null'));
     assert(await js('document.querySelector(".job-report").open && document.querySelector(".job-report .reward-grid")'), 'the newest result shows even while another job is out');
     assert(await js('!!document.querySelector("#job-machine")'), 'a slot is free again');
     ctx.garageWin.setContentSize(380, originalSize[1]); await wait(150);
@@ -196,7 +213,7 @@ const until = makeUntil('dispatch UI');
     await focusJobs(); await shot('15-slots-narrow');
     ctx.garageWin.setContentSize(...originalSize);
     assert.equal(errors.length, 0, errors.join(String.fromCharCode(10)));
-    console.log('PASS Dispatch slots UI: buy second slot, garage machine leaves without moving the desktop, busy site/machine, two jobs, claim one, narrow layout');
+    console.log('PASS Dispatch slots UI: buy second slot, garage machine leaves without moving the desktop, small click-through companion works and shows ready, busy site/machine, two jobs, claim one, narrow layout');
   }
   console.log(`Screenshots: ${output}`);
   if (demo) {
