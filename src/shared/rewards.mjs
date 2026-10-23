@@ -69,7 +69,7 @@ export function claimJob(state, action) {
     if (rolls[3 + 2 * i] >= chance) return;
     const id = rollDrop(site, rolls[4 + 2 * i], job.machineId);
     const dup = owned.includes(id);
-    const refund = dup ? duplicateRefund(id, version) : 0;
+    const refund = dup ? duplicateRefund(id, version, site.id) : 0;
     if (dup) { coins += refund; duplicates += refund; }
     else owned = [...owned, id];
     drops.push({ id, dup, coins: refund });

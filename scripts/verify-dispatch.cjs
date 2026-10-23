@@ -45,7 +45,13 @@ async function until(check) {
   await js(bannerScript('派遣驗收演示 · 獨立測試存檔 · 測試已加速計時，不影響正式進度'));
   ctx.garageWin.setTitle('派遣驗收演示 — 不影響正式存檔');
   const focusJobs = () => js('document.querySelector("#jobs").closest("section").scrollIntoView(); window.scrollBy(0,-38)');
-  const shot = async (name) => { await wait(250); fs.writeFileSync(path.join(output, `${name}.png`), (await g.capturePage()).toPNG()); };
+  const shot = async (name) => {
+    for (let attempt = 1; ; attempt++) {
+      await wait(250 * attempt);
+      try { fs.writeFileSync(path.join(output, `${name}.png`), (await g.capturePage()).toPNG()); return; }
+      catch (err) { if (attempt === 3) throw new Error(`Screenshot ${name} failed`, { cause: err }); }
+    }
+  };
   const originalSize = ctx.garageWin.getContentSize();
   for (const width of [originalSize[0], 380]) {
     ctx.garageWin.setContentSize(width, originalSize[1]);
@@ -133,6 +139,13 @@ async function until(check) {
     assert((await card('river')).includes('新機型保底 3／10'));
     assert(!(await card('river')).includes('必得'));
     assert(!(await card('rail')).includes('新機型保底'));
+    assert((await card('scrap')).includes('回收專長：重複零件按標價 50% 折現（10～50 金幣）'));
+    assert(!(await card('quarry')).includes('回收專長'));
+    await js('document.querySelector("[data-site=scrap]").closest("article").scrollIntoView({block:"center"})'); await shot('12-recycling-site');
+    await js('document.querySelector("[data-site=scrap]").click()');
+    assert(await js('document.querySelector("#job-confirm-body").textContent.includes("回收專長") && document.querySelector("#job-confirm-body").textContent.includes("50% 折現（10～50 金幣）")'));
+    await shot('13-recycling-confirm');
+    await js('document.querySelector("#job-back").click()');
     await js('document.querySelector("[data-site=mine]").closest("article").scrollIntoView({block:"center"})'); await shot('07-pity-site');
     await js('document.querySelector("[data-site=mine]").click()');
     assert(await js('document.querySelector("#job-confirm").open'));
@@ -141,7 +154,7 @@ async function until(check) {
     await js('document.querySelector("#job-depart").click()');
     await until(() => ctx.gameState.job && js('!!document.querySelector("[data-job=cancel]")'));
     const pityJob = ctx.gameState.job;
-    assert.equal(pityJob.rulesVersion, 3); assert.equal(pityJob.pity, 8);
+    assert.equal(pityJob.rulesVersion, 4); assert.equal(pityJob.pity, 8);
     assert(await js('document.querySelector("#jobs").textContent.includes("本趟必得新機型")'));
     await replace({ ...ctx.gameState, job: { ...pityJob, start: Date.now() - 7_201_000, end: Date.now() - 1000, rolls: [0.5, 0.5, 0.99, 0.99, 0, 0.99, 0, 0.99, 0, 0.99, 0] } });
     await until(() => js('!!document.querySelector("[data-job=claim]")'));
@@ -159,7 +172,7 @@ async function until(check) {
     nativeTheme.themeSource = 'dark'; await shot('11-pity-dark');
     nativeTheme.themeSource = 'light'; ctx.garageWin.setContentSize(...originalSize);
     assert.equal(errors.length, 0, errors.join(String.fromCharCode(10)));
-    console.log('PASS Machine guarantee UI: per-site progress, due confirmation, fixed snapshot, marked result, narrow and dark layouts');
+    console.log('PASS Machine guarantee and recycling UI: per-site progress, scrap recycling note, due confirmation, fixed snapshot, marked result, narrow and dark layouts');
   }
   console.log(`Screenshots: ${output}`);
   if (demo) {

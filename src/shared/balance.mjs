@@ -125,6 +125,24 @@ export function targetMachineTime({ siteId, machine, target, version = 1, sample
     p50Hours: q(0.5), p90Hours: q(0.9), maxHours: complete === samples ? Math.max(...times) : null, windowHours: 2000 * site.minutes / 60 };
 }
 
+export const CHECK_IN_MINUTES = [0, 15, 30, 60, 120, 240, 480];
+
+/** Per-hour rates when the player only comes back every `interval` minutes (0 = re-dispatch the moment a job ends). */
+export function checkInRates(row, interval) {
+  const minutes = interval ? interval * Math.ceil(row.minutes / interval) : row.minutes;
+  const perTrip = { net: row.mean.net, xp: row.hourly.xp * row.minutes / 60, parts: row.mean.parts, machines: row.mean.machines };
+  return Object.fromEntries(Object.entries(perTrip).map(([k, v]) => [k, v * 60 / minutes]));
+}
+
+/** Pairs dominated at every check-in interval: a real gap, not a trade-off between short and long jobs. */
+export function checkInDominance(rows, intervals = CHECK_IN_MINUTES) {
+  const perInterval = intervals.map((interval) => ({ interval,
+    pairs: dominance(rows.map((r) => ({ ...r, hourly: checkInRates(r, interval) }))) }));
+  const key = (p) => `${p.better}>${p.worse}`;
+  const always = perInterval[0].pairs.filter((p) => perInterval.every(({ pairs }) => pairs.some((q) => key(q) === key(p))));
+  return { perInterval, always };
+}
+
 /** Dominance on four scalar rates; distinct loot sources are deliberately not valued as money. */
 export function dominance(rows) {
   const keys = ['net', 'xp', 'parts', 'machines'];

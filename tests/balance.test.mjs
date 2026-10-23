@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { normalize, reduce } from '../src/shared/reducer.mjs';
 import { SITES, PARTS, partById } from '../src/shared/parts.mjs';
-import { economySites, economySite, duplicateRefund } from '../src/shared/economy.mjs';
+import { economySites, economySite, duplicateRefund, CURRENT_ECONOMY_VERSION } from '../src/shared/economy.mjs';
 import { sampleSite, comparison, firstPurchase, machineWait, targetMachineTime, maintenanceRun, scenario, seededRandom, simulateTrip } from '../src/shared/balance.mjs';
 import { startServer } from '../server/index.mjs';
 const test = (name, fn) => { fn(); console.log('PASS ' + name); };
@@ -22,7 +22,7 @@ test('original tables, ordinary departure and refund defaults remain unchanged',
 });
 test('accepted rules are the production default, never selected by a client property', () => {
   const a = reduce(base, { type: 'startJob', site: 'yard', now: 1000, rulesVersion: 2, previewVersion: 2 });
-  assert.equal(a.job.rulesVersion, 3);
+  assert.equal(a.job.rulesVersion, CURRENT_ECONOMY_VERSION);
   assert.equal(begin(base, 99).job.rulesVersion, 1);
   assert.equal(begin(base, 2).job.rulesVersion, 2);
 });
@@ -109,6 +109,6 @@ try {
   server = await startServer({ dataDir: dir, token: 'balance-test' });
   const request = (action) => fetch(`http://127.0.0.1:${server.port}/dispatch`, { method: 'POST', headers: { Authorization: 'Bearer balance-test', 'Content-Type': 'application/json' }, body: JSON.stringify(action) });
   assert.equal((await request({ type: 'startJob', site: 'yard', rulesVersion: 1, previewVersion: 1 })).status, 200);
-  assert.equal(server.getState().job.rulesVersion, 3);
+  assert.equal(server.getState().job.rulesVersion, CURRENT_ECONOMY_VERSION);
   console.log('PASS ordinary server ignores forged legacy version and uses accepted production rules');
 } finally { await server?.close(); fs.rmSync(dir, { recursive: true, force: true }); }
