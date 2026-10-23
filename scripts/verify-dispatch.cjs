@@ -189,6 +189,7 @@ const until = makeUntil('dispatch UI');
     await js('document.querySelector("[data-job=claim]").click()');
     await until(() => ctx.gameState.jobs.length === 1 && ctx.gameState.reports[0]?.jobId === miniJob.id);
     assert.equal(ctx.gameState.jobs[0].machineId, 'm_std');
+    assert(await js('document.querySelector(".job-report").open && document.querySelector(".job-report .reward-grid")'), 'the newest result shows even while another job is out');
     assert(await js('!!document.querySelector("#job-machine")'), 'a slot is free again');
     ctx.garageWin.setContentSize(380, originalSize[1]); await wait(150);
     assert(await js('document.documentElement.scrollWidth <= innerWidth'));

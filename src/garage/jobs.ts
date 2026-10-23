@@ -96,7 +96,8 @@ function siteGridHtml(state: GameState, machineId: string) {
 
 export function renderJobs() {
   const { state } = ui;
-  reportEl.innerHTML = state.reports.map((r, i) => reportHtml(r, i === 0 && !state.jobs.length)).join('');
+  // with several slots a job is usually still out, so the newest result must not hide behind it
+  reportEl.innerHTML = state.reports.map((r, i) => reportHtml(r, i === 0)).join('');
   shownReady = readyKey(state);
   const status = `<p id="job-message" class="job-message ${failed ? 'error' : ''}" role="status">${esc(message)}</p>`;
   const cards = state.jobs.map((job) => jobHtml(state, job)).join('');
